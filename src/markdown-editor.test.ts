@@ -1,9 +1,18 @@
 // @vitest-environment jsdom
-import { editorViewCtx } from "@milkdown/kit/core";
+import { editorViewCtx, schemaCtx, type Editor } from "@milkdown/kit/core";
+import { uploadConfig } from "@milkdown/kit/plugin/upload";
+import type { Node } from "@milkdown/kit/prose/model";
 import { undo } from "@milkdown/kit/prose/history";
 import { afterEach, expect, it, vi } from "vitest";
 import { formatMarkdown } from "./lib/format-markdown";
+import { saveAsset, showError } from "./lib/tauri";
 import { createMarkdownEditor, editorHandle, toggleTaskItem } from "./markdown-editor";
+
+vi.mock("./lib/tauri", () => ({
+  assetUrl: (path: string) => `asset://localhost${path}`,
+  saveAsset: vi.fn(async (_dir: string, fileName: string) => `assets/${fileName}`),
+  showError: vi.fn(async () => {}),
+}));
 
 const onChange = vi.fn();
 let destroy: () => Promise<unknown> = async () => {};
@@ -29,6 +38,8 @@ async function setup() {
 }
 
 afterEach(async () => {
+  vi.mocked(saveAsset).mockClear();
+  vi.mocked(showError).mockClear();
   const d = destroy;
   destroy = async () => {};
   await d();
@@ -167,4 +178,79 @@ it("leaves unknown language code block without tokens", async () => {
   expect(root!.querySelector("pre .token")).toBeNull();
   type("a");
   expect(handle.getValue()).toBe("```text\naconst x = 1;\n```\n");
+});
+
+const imageSrc = () => root!.querySelector("img:not(.ProseMirror-separator)")?.getAttribute("src");
+
+it("renders relative image src against the document path", async () => {
+  const { handle } = await setup();
+  handle.setFilePath("/docs/n.md");
+  handle.setValue("![pic](assets/p.png)\n");
+  expect(imageSrc()).toBe("asset://localhost/docs/assets/p.png");
+  expect(handle.getValue()).toBe("![pic](assets/p.png)\n");
+  expect(onChange).not.toHaveBeenCalled();
+});
+
+it("leaves remote image src untouched", async () => {
+  const { handle } = await setup();
+  handle.setFilePath("/docs/n.md");
+  handle.setValue("![pic](https://example.com/p.png)\n");
+  expect(imageSrc()).toBe("https://example.com/p.png");
+});
+
+it("re-resolves image src when another document with the same relative path opens", async () => {
+  const { handle } = await setup();
+  handle.setFilePath("/a/n.md");
+  handle.setValue("![pic](assets/p.png)\n");
+  handle.setFilePath("/b/n.md");
+  handle.setValue("![pic](assets/p.png)\n");
+  expect(imageSrc()).toBe("asset://localhost/b/assets/p.png");
+  expect(handle.getValue()).toBe("![pic](assets/p.png)\n");
+});
+
+it("rewrites relative image src when the document moves to another folder", async () => {
+  const { handle } = await setup();
+  handle.setFilePath("/a/n.md");
+  handle.setValue("![pic](assets/p.png) ![abs](/x/q.png) ![web](https://example.com/r.png)\n");
+  handle.setFilePath("/b/n.md");
+  expect(handle.getValue()).toBe("![pic](../a/assets/p.png) ![abs](/x/q.png) ![web](https://example.com/r.png)\n");
+  expect(imageSrc()).toBe("asset://localhost/a/assets/p.png");
+  expect(onChange).toHaveBeenCalledTimes(1);
+  handle.setFilePath("/a/n.md");
+  expect(handle.getValue()).toBe("![pic](assets/p.png) ![abs](/x/q.png) ![web](https://example.com/r.png)\n");
+});
+
+it("does not rewrite image src on the first save of an untitled document", async () => {
+  const { handle } = await setup();
+  handle.setFilePath(null);
+  handle.setValue("![pic](assets/p.png)\n");
+  handle.setFilePath("/a/n.md");
+  expect(handle.getValue()).toBe("![pic](assets/p.png)\n");
+  expect(imageSrc()).toBe("asset://localhost/a/assets/p.png");
+  expect(onChange).not.toHaveBeenCalled();
+});
+
+function runUploader(editor: Editor, files: File[]) {
+  return editor.action((ctx) =>
+    ctx.get(uploadConfig.key).uploader(files as unknown as FileList, ctx.get(schemaCtx), ctx, 0),
+  );
+}
+
+it("pasting an image without a file path shows an error and inserts nothing", async () => {
+  const { handle, editor } = await setup();
+  handle.setFilePath(null);
+  const file = new File([new Uint8Array([1, 2, 3])], "image.png", { type: "image/png" });
+  expect(await runUploader(editor, [file])).toEqual([]);
+  expect(showError).toHaveBeenCalledTimes(1);
+  expect(saveAsset).not.toHaveBeenCalled();
+});
+
+it("pasting an image saves it under assets and returns a relative image node", async () => {
+  const { handle, editor } = await setup();
+  handle.setFilePath("/docs/n.md");
+  const file = new File([new Uint8Array([1, 2, 3])], "image.png", { type: "image/png" });
+  const nodes = await runUploader(editor, [file]);
+  expect(saveAsset).toHaveBeenCalledWith("/docs", expect.stringMatching(/^image-\d{8}-\d{6}\.png$/), [1, 2, 3]);
+  expect(nodes).toHaveLength(1);
+  expect((nodes as Node[])[0]!.attrs.src).toMatch(/^assets\/image-\d{8}-\d{6}\.png$/);
 });

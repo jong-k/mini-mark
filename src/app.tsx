@@ -33,6 +33,7 @@ export default function App() {
       const h = editor.current;
       if (!h) return;
       if (isDirty && !(await confirmDiscard())) return;
+      h.setFilePath(null);
       h.setValue("");
       setFilePath(null);
       setIsDirty(false);
@@ -47,6 +48,7 @@ export default function App() {
       const path = await pickOpenPath();
       if (path === null) return;
       const content = await readMarkdown(path);
+      h.setFilePath(path);
       h.setValue(content);
       setFilePath(path);
       setIsDirty(false);
@@ -57,9 +59,15 @@ export default function App() {
     return run(async () => {
       const h = editor.current;
       if (!h) return;
+      // 다른 폴더면 상대 경로 이미지를 새 위치 기준으로 다시 쓴다. getValue보다 먼저 불러야 한다.
+      h.setFilePath(path);
       const source = h.getValue();
-      const formatted = formatMarkdown(source);
-      await saveMarkdownAtomic(path, formatted);
+      try {
+        await saveMarkdownAtomic(path, formatMarkdown(source));
+      } catch (err) {
+        h.setFilePath(filePath);
+        throw err;
+      }
       setFilePath(path);
       if (h.getValue() !== source) return;
       setIsDirty(false);

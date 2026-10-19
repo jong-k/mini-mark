@@ -5,10 +5,13 @@ import { createMarkdownEditor, editorHandle } from "./markdown-editor";
 /**
  * 에디터 본문 접근 인터페이스.
  * `setValue`는 `onChange`를 발생시키지 않아야 한다. 핸들은 Milkdown 생성이 끝나기 전까지 `null`이다.
+ * `setFilePath`는 상대 경로 이미지의 기준 폴더와 붙여넣은 이미지의 저장 위치를 정한다. `setValue`보다 먼저 호출한다.
+ * 문서 폴더가 바뀌면 상대 경로 이미지가 원래 파일을 계속 가리키도록 `src`를 다시 쓰므로 이때는 `onChange`가 발생한다.
  */
 export interface EditorHandle {
   getValue(): string;
   setValue(value: string): void;
+  setFilePath(path: string | null): void;
 }
 
 export function Editor({
