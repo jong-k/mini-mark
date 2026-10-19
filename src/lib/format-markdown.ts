@@ -11,6 +11,6 @@ export async function formatMarkdown(source: string): Promise<string> {
       endOfLine: "lf",
     });
   } catch {
-    return source;
+    return source.replace(/\r\n?/g, "\n");
   }
 }

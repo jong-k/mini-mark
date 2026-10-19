@@ -20,4 +20,15 @@ describe("formatMarkdown", () => {
     const { formatMarkdown: mocked } = await import("./format-markdown");
     expect(await mocked("x")).toBe("x");
   });
+
+  it("normalizes CRLF to LF when formatting throws", async () => {
+    vi.doMock("prettier/standalone", () => ({
+      format: () => {
+        throw new Error("boom");
+      },
+    }));
+    vi.resetModules();
+    const { formatMarkdown: mocked } = await import("./format-markdown");
+    expect(await mocked("a\r\nb")).toBe("a\nb");
+  });
 });

@@ -30,8 +30,10 @@ export default function App() {
 
   function newDocument() {
     return run(async () => {
+      const h = editor.current;
+      if (!h) return;
       if (isDirty && !(await confirmDiscard())) return;
-      editor.current?.setValue("");
+      h.setValue("");
       setFilePath(null);
       setIsDirty(false);
     });
@@ -39,11 +41,13 @@ export default function App() {
 
   function openDocument() {
     return run(async () => {
+      const h = editor.current;
+      if (!h) return;
       if (isDirty && !(await confirmDiscard())) return;
       const path = await pickOpenPath();
       if (path === null) return;
       const content = await readMarkdown(path);
-      editor.current?.setValue(content);
+      h.setValue(content);
       setFilePath(path);
       setIsDirty(false);
     });
@@ -51,12 +55,14 @@ export default function App() {
 
   function saveDocument(path: string) {
     return run(async () => {
-      const source = editor.current?.getValue() ?? "";
+      const h = editor.current;
+      if (!h) return;
+      const source = h.getValue();
       const formatted = await formatMarkdown(source);
       await saveMarkdownAtomic(path, formatted);
       setFilePath(path);
-      if (editor.current?.getValue() !== source) return;
-      if (formatted !== source) editor.current?.setValue(formatted);
+      if (h.getValue() !== source) return;
+      if (formatted !== source) h.setValue(formatted);
       setIsDirty(false);
     });
   }
@@ -82,6 +88,7 @@ export default function App() {
   const actions = useRef({ new: newDocument, open: openDocument, save, saveAs });
   actions.current = { new: newDocument, open: openDocument, save, saveAs };
 
+  const busy = useRef(false);
   const isDirtyRef = useRef(isDirty);
   isDirtyRef.current = isDirty;
 
@@ -96,11 +103,18 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    function onKeyDown(e: KeyboardEvent) {
+    // 저장 중 Cmd+N/Cmd+O가 끼어들면 새 문서가 이전 경로에 묶인다. 진행 중인 동작이 끝날 때까지 단축키를 무시한다.
+    async function onKeyDown(e: KeyboardEvent) {
       const action = matchShortcut(e);
       if (action === null) return;
       e.preventDefault();
-      void actions.current[action]();
+      if (busy.current) return;
+      busy.current = true;
+      try {
+        await actions.current[action]();
+      } finally {
+        busy.current = false;
+      }
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
