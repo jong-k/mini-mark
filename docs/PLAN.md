@@ -44,18 +44,27 @@ Typora 스타일의 위지윅(WYSIWYM) 편집 경험과 빠른 실행 속도, �
 
 상세 태스크: [`superpowers/plans/2026-10-19-phase2-milkdown-editor.md`](superpowers/plans/2026-10-19-phase2-milkdown-editor.md)
 
-- [x] `@milkdown/kit`(`core`, `preset/commonmark`, `preset/gfm`, `plugin/listener`, `plugin/history` 포함) 설치 및 초기 설정
+- [x] `@milkdown/kit`(`core`, `preset/commonmark`, `preset/gfm`, `plugin/history` 포함) 설치 및 초기 설정
 - [x] 단방향 데이터 플로우 연결
   - 파일 열기: 읽어온 문자열로 에디터 인스턴스 초기화
   - 편집 중: 동기 ProseMirror 플러그인 뷰(`update`)로 문서 변경 시 `isDirty` 상태만 업데이트 (React 리렌더링 차단). listener 플러그인은 200ms 디바운스라 닫기 경고를 놓칠 수 있어 사용하지 않음
   - 파일 저장: `Cmd + S` 입력 시점에만 에디터에서 마크다운 문자열을 추출하여 LF 정규화와 끝 개행 보장 후 디스크에 기록 (타이핑 중 커서 튐 방지)
 - [ ] 한글 IME 조합 테스트 (제목, 굵게, 리스트 등 마크다운 Input Rule 변환 직후 한글 입력 시 자소 분리 여부 검증) (수동 검증 대기)
 - [x] Prettier 제거 여부 판단: Milkdown `getMarkdown()` 출력(remark-stringify)이 충분히 일관되면 Prettier를 빼고 LF 정규화와 끝 개행만 남긴다 → 제거함(remark-stringify 출력이 결정적이고 Prettier와 충돌)
+- 알려진 문제 (2단계, 직렬화 동작)
+  - front matter는 편집 불가, 저장 시 원문 그대로 보존(shim)
+  - `[[page]]` → `\[\[page]]` (위키 링크 이스케이프)
+  - 참조 링크 `[x][r]`와 정의 → 인라인 링크로 변환
+  - 맨 URL `https://example.com` → `<https://example.com>`
+  - 줄 끝 공백 두 개 줄바꿈 `a  \nb` → `a\\\nb`
+  - `a*b` → `a\*b` (`snake_case`는 유지)
+  - 연속 빈 줄은 한 줄로 축소, 빈 문단은 `<br />`로 저장됨 (정책 미정)
+  - 작업 목록 체크 상태가 화면에 표시되지 않음 (3단계 스타일링에서 처리)
 
 ### 3단계: Typora 스타일 UI 및 확장 렌더링 고도화
 마크다운 확장 문법을 붙이고 로컬 에셋 처리와 스타일을 다듬는다.
 
-- [ ] GFM 렌더링 검증(표 편집, 체크박스 토글, 각주). 프리셋 연동은 2단계에서 선행
+- [ ] GFM 렌더링 검증(표 편집, 체크박스 토글, 취소선, 각주). 프리셋 연동은 2단계에서 선행
 - [ ] `@milkdown/plugin-prism` 또는 Shiki 기반 코드 블록 구문 강조 적용
 - [ ] 로컬 이미지 렌더링 및 붙여넣기 처리
   - 마크다운 내 상대 경로 이미지를 웹뷰에 띄우기 위해 Tauri `convertFileSrc` 및 Asset 프로토콜 스코프 설정
