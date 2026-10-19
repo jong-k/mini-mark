@@ -1,3 +1,6 @@
+@import "@milkdown/kit/prose/view/style/prosemirror.css";
+@import "@milkdown/kit/prose/tables/style/tables.css";
+
 html,
 body,
 #root {
@@ -6,11 +9,9 @@ body,
 }
 
 .ProseMirror {
-  white-space: pre-wrap;
-  word-wrap: break-word;
-  outline: none;
   min-height: 100vh;
   padding: 16px;
   box-sizing: border-box;
+  outline: none;
   font: 16px/1.6 system-ui, sans-serif;
 }
