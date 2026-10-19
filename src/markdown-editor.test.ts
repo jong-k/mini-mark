@@ -153,3 +153,18 @@ it("ignores toggle on a plain list item", async () => {
   expect(handle.getValue()).toBe("- a\n");
   expect(onChange).not.toHaveBeenCalled();
 });
+
+it("highlights code block tokens", async () => {
+  const { handle } = await setup();
+  handle.setValue("```ts\nconst x = 1;\n```\n");
+  expect(root!.querySelector("pre .token.keyword")?.textContent).toBe("const");
+  expect(handle.getValue()).toBe("```ts\nconst x = 1;\n```\n");
+});
+
+it("leaves unknown language code block without tokens", async () => {
+  const { handle, type } = await setup();
+  handle.setValue("```text\nconst x = 1;\n```\n");
+  expect(root!.querySelector("pre .token")).toBeNull();
+  type("a");
+  expect(handle.getValue()).toBe("```text\naconst x = 1;\n```\n");
+});

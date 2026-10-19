@@ -3,6 +3,7 @@ import { history } from "@milkdown/kit/plugin/history";
 import { codeBlockSchema, commonmark } from "@milkdown/kit/preset/commonmark";
 import { gfm } from "@milkdown/kit/preset/gfm";
 import { Plugin } from "@milkdown/kit/prose/state";
+import { prism } from "@milkdown/plugin-prism";
 import type { EditorView } from "@milkdown/kit/prose/view";
 import { $prose, getMarkdown, replaceAll } from "@milkdown/kit/utils";
 import type { EditorHandle } from "./editor";
@@ -78,6 +79,7 @@ export function createMarkdownEditor(root: HTMLElement, onChange: () => void): P
     .use(gfm)
     .use(taskToggle)
     .use(history)
+    .use(prism)
     .use(docChanged)
     .create();
 }
