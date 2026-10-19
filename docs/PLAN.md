@@ -33,11 +33,11 @@ Typora 스타일의 위지윅(WYSIWYM) 편집 경험과 빠른 실행 속도, �
 상세 태스크: [`superpowers/plans/2026-10-19-phase1-file-io.md`](superpowers/plans/2026-10-19-phase1-file-io.md)
 
 - [x] Tauri v2 프로젝트 스캐폴딩 및 `dialog` 플러그인 연동
-- [ ] Rust 백엔드: 파일 읽기(`read_markdown`) 및 임시 파일 생성 후 교체하는 원자적 저장(`save_markdown_atomic`) 커맨드 구현
-- [ ] 프론트엔드: Prettier standalone 마크다운 포매터 유틸리티 작성 (지연 로드, 파싱 에러 시 원본 보존 예외 처리 포함)
-- [ ] 문서 상태(`filePath`, `isDirty`) 관리 및 창 타이틀바 수정 표시(`•`) 동기화
-- [ ] 전역 단축키(`Cmd + O`, `Cmd + S`, `Cmd + Shift + S`, `Cmd + N`) 바인딩
-- [ ] 미저장 상태에서 창 닫기나 다른 파일 열기 시 경고 모달 방어 로직 구현
+- [x] Rust 백엔드: 파일 읽기(`read_markdown`) 및 임시 파일 생성 후 교체하는 원자적 저장(`save_markdown_atomic`) 커맨드 구현
+- [x] 프론트엔드: Prettier standalone 마크다운 포매터 유틸리티 작성 (지연 로드, 파싱 에러 시 원본 보존 예외 처리 포함)
+- [x] 문서 상태(`filePath`, `isDirty`) 관리 및 창 타이틀바 수정 표시(`•`) 동기화
+- [x] 전역 단축키(`Cmd + O`, `Cmd + S`, `Cmd + Shift + S`, `Cmd + N`) 바인딩
+- [x] 미저장 상태에서 창 닫기나 다른 파일 열기 시 경고 모달 방어 로직 구현
 
 ### 2단계: Milkdown 에디터 코어 교체 및 단방향 바인딩
 `<textarea>`를 들어내고 Milkdown 에디터를 마운트하여 기본 위지윅 마크다운 편집을 구현한다.

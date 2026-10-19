@@ -4,6 +4,8 @@ import { Editor, type EditorHandle } from "./editor";
 import { matchShortcut } from "./lib/document-shortcuts";
 import { formatMarkdown } from "./lib/format-markdown";
 import {
+  confirmDiscard,
+  onWindowCloseRequested,
   pickOpenPath,
   pickSavePath,
   readMarkdown,
@@ -27,13 +29,17 @@ export default function App() {
   }
 
   function newDocument() {
-    editor.current?.setValue("");
-    setFilePath(null);
-    setIsDirty(false);
+    return run(async () => {
+      if (isDirty && !(await confirmDiscard())) return;
+      editor.current?.setValue("");
+      setFilePath(null);
+      setIsDirty(false);
+    });
   }
 
   function openDocument() {
     return run(async () => {
+      if (isDirty && !(await confirmDiscard())) return;
       const path = await pickOpenPath();
       if (path === null) return;
       const content = await readMarkdown(path);
@@ -48,8 +54,9 @@ export default function App() {
       const source = editor.current?.getValue() ?? "";
       const formatted = await formatMarkdown(source);
       await saveMarkdownAtomic(path, formatted);
-      if (formatted !== source) editor.current?.setValue(formatted);
       setFilePath(path);
+      if (editor.current?.getValue() !== source) return;
+      if (formatted !== source) editor.current?.setValue(formatted);
       setIsDirty(false);
     });
   }
@@ -74,6 +81,19 @@ export default function App() {
 
   const actions = useRef({ new: newDocument, open: openDocument, save, saveAs });
   actions.current = { new: newDocument, open: openDocument, save, saveAs };
+
+  const isDirtyRef = useRef(isDirty);
+  isDirtyRef.current = isDirty;
+
+  useEffect(() => {
+    // ponytail: 버리기/취소 2버튼. 저장/버리기/취소 3버튼이 필요하면 커스텀 모달로 교체.
+    const unlisten = onWindowCloseRequested(
+      async () => !isDirtyRef.current || (await confirmDiscard()),
+    );
+    return () => {
+      void unlisten.then((fn) => fn());
+    };
+  }, []);
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
