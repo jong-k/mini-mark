@@ -1,10 +1,36 @@
 import { Editor, remarkStringifyOptionsCtx, rootCtx } from "@milkdown/kit/core";
 import { history } from "@milkdown/kit/plugin/history";
-import { commonmark } from "@milkdown/kit/preset/commonmark";
+import { codeBlockSchema, commonmark } from "@milkdown/kit/preset/commonmark";
 import { gfm } from "@milkdown/kit/preset/gfm";
 import { Plugin } from "@milkdown/kit/prose/state";
 import { $prose, getMarkdown, replaceAll } from "@milkdown/kit/utils";
 import type { EditorHandle } from "./editor";
+
+// 기본 code_block은 언어만 보존한다. ```js title=a 같은 meta를 attr로 들고 다니며 왕복시킨다.
+const codeBlockWithMeta = codeBlockSchema.extendSchema((prev) => (ctx) => {
+  const base = prev(ctx);
+  return {
+    ...base,
+    attrs: { ...base.attrs, meta: { default: "" } },
+    parseMarkdown: {
+      match: base.parseMarkdown.match,
+      runner: (state, node, type) => {
+        state.openNode(type, { language: node.lang ?? "", meta: node.meta ?? "" });
+        if (node.value) state.addText(node.value as string);
+        state.closeNode();
+      },
+    },
+    toMarkdown: {
+      match: base.toMarkdown.match,
+      runner: (state, node) => {
+        state.addNode("code", undefined, node.content.firstChild?.text || "", {
+          lang: node.attrs.language,
+          meta: node.attrs.meta || null,
+        });
+      },
+    },
+  };
+});
 
 export function createMarkdownEditor(root: HTMLElement, onChange: () => void): Promise<Editor> {
   // 동기 더티 신호. listener 플러그인은 200ms 디바운스라 그 안에 창을 닫으면 변경이 유실된다.
@@ -25,6 +51,7 @@ export function createMarkdownEditor(root: HTMLElement, onChange: () => void): P
       ctx.update(remarkStringifyOptionsCtx, (o) => ({ ...o, bullet: "-" as const }));
     })
     .use(commonmark)
+    .use(codeBlockWithMeta)
     .use(gfm)
     .use(history)
     .use(docChanged)
@@ -38,8 +65,9 @@ export function editorHandle(editor: Editor): EditorHandle {
     getValue: () => frontMatter + editor.action(getMarkdown()),
     // flush=true: 교체가 히스토리에 쌓이거나 onChange를 발생시키지 않게 한다.
     setValue: (value) => {
-      frontMatter = value.match(/^---\r?\n[\s\S]*?\r?\n---\r?\n(?:\r?\n)*/)?.[0] ?? "";
-      editor.action(replaceAll(value.slice(frontMatter.length), true));
+      const raw = value.match(/^\uFEFF?---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)(?:\r?\n)*/)?.[0] ?? "";
+      frontMatter = raw.replace(/\r\n/g, "\n");
+      editor.action(replaceAll(value.slice(raw.length), true));
     },
   };
 }

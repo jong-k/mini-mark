@@ -111,3 +111,25 @@ it("preserves leading front matter across setValue and getValue", async () => {
   handle.setValue("plain\n");
   expect(handle.getValue()).toBe("plain\n");
 });
+
+it.each([
+  ["닫는 --- 뒤 EOF", "---\ntitle: x\n---"],
+  ["BOM 시작", "﻿---\ntitle: x\n---\n\n# 본문\n"],
+])("preserves front matter: %s", async (_name, doc) => {
+  const { handle } = await setup();
+  handle.setValue(doc);
+  expect(handle.getValue()).toBe(doc);
+});
+
+it("normalizes CRLF front matter to LF like the body", async () => {
+  const { handle } = await setup();
+  handle.setValue("---\r\ntitle: x\r\n---\r\n\r\n# 본문\r\n");
+  expect(handle.getValue()).toBe("---\ntitle: x\n---\n\n# 본문\n");
+});
+
+it("preserves code fence meta", async () => {
+  const { handle } = await setup();
+  const doc = "```js title=example {1,3}\nconst a = 1;\n```\n";
+  handle.setValue(doc);
+  expect(handle.getValue()).toBe(doc);
+});
