@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import "./app.css";
 import { Editor, type EditorHandle } from "./editor";
 import { matchShortcut } from "./lib/document-shortcuts";
+import { blockFileDrop } from "./lib/file-drop";
 import { formatMarkdown } from "./lib/format-markdown";
 import {
   confirmDiscard,
@@ -124,7 +125,13 @@ export default function App() {
       }
     }
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    window.addEventListener("dragover", blockFileDrop);
+    window.addEventListener("drop", blockFileDrop);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("dragover", blockFileDrop);
+      window.removeEventListener("drop", blockFileDrop);
+    };
   }, []);
 
   return <Editor handleRef={editor} onChange={() => setIsDirty(true)} />;
