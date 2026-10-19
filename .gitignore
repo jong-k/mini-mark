@@ -25,3 +25,6 @@ dist-ssr
 
 # Serena MCP
 .serena/
+
+# superpowers SDD scratch
+.superpowers/
