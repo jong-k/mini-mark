@@ -62,7 +62,6 @@ export default function App() {
       await saveMarkdownAtomic(path, formatted);
       setFilePath(path);
       if (h.getValue() !== source) return;
-      if (formatted !== source) h.setValue(formatted);
       setIsDirty(false);
     });
   }
