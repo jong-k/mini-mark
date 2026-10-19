@@ -4,3 +4,13 @@ body,
   margin: 0;
   height: 100%;
 }
+
+.ProseMirror {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  outline: none;
+  min-height: 100vh;
+  padding: 16px;
+  box-sizing: border-box;
+  font: 16px/1.6 system-ui, sans-serif;
+}
