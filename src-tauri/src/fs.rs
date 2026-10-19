@@ -1,6 +1,6 @@
 use std::fs::{self, File};
 use std::io::Write;
-use std::path::Path;
+use std::path::PathBuf;
 
 #[tauri::command]
 pub fn read_markdown(path: String) -> Result<String, String> {
@@ -9,7 +9,8 @@ pub fn read_markdown(path: String) -> Result<String, String> {
 
 #[tauri::command]
 pub fn save_markdown_atomic(path: String, content: String) -> Result<(), String> {
-    let path = Path::new(&path);
+    // symlink면 링크 대상에 쓴다. 새 파일은 canonicalize가 실패하므로 받은 경로를 그대로 쓴다.
+    let path = fs::canonicalize(&path).unwrap_or_else(|_| PathBuf::from(&path));
     let file_name = path
         .file_name()
         .ok_or_else(|| "invalid file path".to_string())?
@@ -21,7 +22,7 @@ pub fn save_markdown_atomic(path: String, content: String) -> Result<(), String>
             f.sync_all()
         })
         // ponytail: rename은 원본 inode를 교체하므로 원본의 권한/xattr은 유지되지 않는다. 필요해지면 metadata 복사 추가.
-        .and_then(|_| fs::rename(&tmp, path));
+        .and_then(|_| fs::rename(&tmp, &path));
     if let Err(e) = result {
         let _ = fs::remove_file(&tmp);
         return Err(e.to_string());
@@ -52,6 +53,15 @@ mod tests {
         fs::write(&path, "old").unwrap();
         save_markdown_atomic(path.to_string_lossy().into(), "new".into()).unwrap();
         assert_eq!(fs::read_to_string(&path).unwrap(), "new");
+        assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 1);
+    }
+
+    #[test]
+    fn save_fails_when_target_is_directory_and_leaves_no_tmp() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("a.md");
+        fs::create_dir(&path).unwrap();
+        assert!(save_markdown_atomic(path.to_string_lossy().into(), "new".into()).is_err());
         assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 1);
     }
 
