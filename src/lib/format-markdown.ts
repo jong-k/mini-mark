@@ -1,16 +1,5 @@
-export async function formatMarkdown(source: string): Promise<string> {
-  try {
-    const [{ format }, markdown] = await Promise.all([
-      import("prettier/standalone"),
-      import("prettier/plugins/markdown"),
-    ]);
-    return await format(source, {
-      parser: "markdown",
-      plugins: [markdown],
-      proseWrap: "preserve",
-      endOfLine: "lf",
-    });
-  } catch {
-    return source.replace(/\r\n?/g, "\n");
-  }
+export function formatMarkdown(source: string): string {
+  const lf = source.replace(/\r\n?/g, "\n");
+  if (lf === "") return "";
+  return lf.replace(/\n*$/, "\n");
 }

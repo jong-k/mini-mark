@@ -58,7 +58,7 @@ export default function App() {
       const h = editor.current;
       if (!h) return;
       const source = h.getValue();
-      const formatted = await formatMarkdown(source);
+      const formatted = formatMarkdown(source);
       await saveMarkdownAtomic(path, formatted);
       setFilePath(path);
       if (h.getValue() !== source) return;
