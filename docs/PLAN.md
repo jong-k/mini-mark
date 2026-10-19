@@ -20,7 +20,7 @@ Typora 스타일의 위지윅(WYSIWYM) 편집 경험과 빠른 실행 속도, �
 | 데스크탑 런타임 | Tauri v2 (Rust) | WKWebView 기반의 가벼운 런타임, 네이티브 다이얼로그 제어 및 Rust 기반 안전한 파일 I/O 구현 |
 | 프론트엔드 코어 | React + TypeScript + Vite | 빠른 번들링 및 UI 컴포넌트 상태 관리 |
 | 에디터 엔진 | Milkdown (ProseMirror 기반) | 마크다운 친화적인 위지윅(WYSIWYM) 렌더링, GFM(표, 체크박스 등) 플러그인 생태계, 안정적인 한글 IME 입력 |
-| 마크다운 포매터 | Prettier (`prettier/standalone`) | 저장 시점에 마크다운 AST 직렬화 결과를 일정한 규칙과 LF 개행으로 자동 포매팅. 콜드 스타트 보호를 위해 첫 저장 시 `import()`로 지연 로드. Milkdown 직렬화기(remark-stringify)와 역할이 겹치므로 2단계 이후 제거 여부 재검토 |
+| 마크다운 포매터 | 없음 (2단계에서 Prettier 제거) | Milkdown 직렬화(remark-stringify) 출력이 결정적이라 별도 포매터 불필요. 저장 시 LF 정규화와 끝 개행만 적용 |
 | 스타일링 | Tailwind CSS + Typography | 에디터 본문 타이포그래피 및 다크 모드 스타일링 간소화 |
 
 ---
@@ -44,18 +44,18 @@ Typora 스타일의 위지윅(WYSIWYM) 편집 경험과 빠른 실행 속도, �
 
 상세 태스크: [`superpowers/plans/2026-10-19-phase2-milkdown-editor.md`](superpowers/plans/2026-10-19-phase2-milkdown-editor.md)
 
-- [ ] `@milkdown/kit`(`core`, `preset/commonmark`, `preset/gfm`, `plugin/listener`, `plugin/history` 포함) 설치 및 초기 설정
-- [ ] 단방향 데이터 플로우 연결
+- [x] `@milkdown/kit`(`core`, `preset/commonmark`, `preset/gfm`, `plugin/listener`, `plugin/history` 포함) 설치 및 초기 설정
+- [x] 단방향 데이터 플로우 연결
   - 파일 열기: 읽어온 문자열로 에디터 인스턴스 초기화
-  - 편집 중: `listener` 플러그인으로 문서 변경 시 `isDirty` 상태만 업데이트 (React 리렌더링 차단)
-  - 파일 저장: `Cmd + S` 입력 시점에만 에디터에서 마크다운 문자열을 추출하여 Prettier 포매팅 후 디스크에 기록 (타이핑 중 커서 튐 방지)
-- [ ] 한글 IME 조합 테스트 (제목, 굵게, 리스트 등 마크다운 Input Rule 변환 직후 한글 입력 시 자소 분리 여부 검증)
-- [ ] Prettier 제거 여부 판단: Milkdown `getMarkdown()` 출력(remark-stringify)이 충분히 일관되면 Prettier를 빼고 LF 정규화와 끝 개행만 남긴다
+  - 편집 중: 동기 ProseMirror 플러그인 뷰(`update`)로 문서 변경 시 `isDirty` 상태만 업데이트 (listener 플러그인은 200ms 디바운스라 닫기 경고를 놓칠 수 있어 사용하지 않음)
+  - 파일 저장: `Cmd + S` 입력 시점에만 에디터에서 마크다운 문자열을 추출하여 LF 정규화와 끝 개행 보장 후 디스크에 기록 (타이핑 중 커서 튐 방지)
+- [ ] 한글 IME 조합 테스트 (제목, 굵게, 리스트 등 마크다운 Input Rule 변환 직후 한글 입력 시 자소 분리 여부 검증) (수동 검증 대기)
+- [x] Prettier 제거 여부 판단: Milkdown `getMarkdown()` 출력(remark-stringify)이 충분히 일관되면 Prettier를 빼고 LF 정규화와 끝 개행만 남긴다 → 제거함(remark-stringify 출력이 결정적이고 Prettier와 충돌)
 
 ### 3단계: Typora 스타일 UI 및 확장 렌더링 고도화
 마크다운 확장 문법을 붙이고 로컬 에셋 처리와 스타일을 다듬는다.
 
-- [ ] `@milkdown/preset-gfm` 연동 (표, 취소선, 작업 목록 체크박스, 각주 지원)
+- [ ] GFM 렌더링 검증(표 편집, 체크박스 토글, 각주). 프리셋 연동은 2단계에서 선행
 - [ ] `@milkdown/plugin-prism` 또는 Shiki 기반 코드 블록 구문 강조 적용
 - [ ] 로컬 이미지 렌더링 및 붙여넣기 처리
   - 마크다운 내 상대 경로 이미지를 웹뷰에 띄우기 위해 Tauri `convertFileSrc` 및 Asset 프로토콜 스코프 설정
