@@ -42,7 +42,9 @@ Typora 스타일의 위지윅(WYSIWYM) 편집 경험과 빠른 실행 속도, �
 ### 2단계: Milkdown 에디터 코어 교체 및 단방향 바인딩
 `<textarea>`를 들어내고 Milkdown 에디터를 마운트하여 기본 위지윅 마크다운 편집을 구현한다.
 
-- [ ] `@milkdown/core`, `@milkdown/preset-commonmark`, `@milkdown/react` 설치 및 초기 설정
+상세 태스크: [`superpowers/plans/2026-10-19-phase2-milkdown-editor.md`](superpowers/plans/2026-10-19-phase2-milkdown-editor.md)
+
+- [ ] `@milkdown/kit`(`core`, `preset/commonmark`, `preset/gfm`, `plugin/listener`, `plugin/history` 포함) 설치 및 초기 설정
 - [ ] 단방향 데이터 플로우 연결
   - 파일 열기: 읽어온 문자열로 에디터 인스턴스 초기화
   - 편집 중: `listener` 플러그인으로 문서 변경 시 `isDirty` 상태만 업데이트 (React 리렌더링 차단)
