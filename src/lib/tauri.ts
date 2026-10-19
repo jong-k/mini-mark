@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { ask, message, open, save } from "@tauri-apps/plugin-dialog";
 
@@ -10,6 +10,15 @@ export function readMarkdown(path: string): Promise<string> {
 
 export function saveMarkdownAtomic(path: string, content: string): Promise<void> {
   return invoke<void>("save_markdown_atomic", { path, content });
+}
+
+// ponytail: number[]는 JSON으로 직렬화된다. 큰 이미지가 느리면 Uint8Array raw body와 헤더로 교체.
+export function saveAsset(dir: string, fileName: string, data: number[]): Promise<string> {
+  return invoke<string>("save_asset", { dir, fileName, data });
+}
+
+export function assetUrl(path: string): string {
+  return convertFileSrc(path);
 }
 
 export function pickOpenPath(): Promise<string | null> {

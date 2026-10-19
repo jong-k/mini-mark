@@ -55,7 +55,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             fs::read_markdown,
-            fs::save_markdown_atomic
+            fs::save_markdown_atomic,
+            fs::save_asset
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

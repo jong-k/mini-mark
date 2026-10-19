@@ -1,6 +1,6 @@
 use std::fs::{self, OpenOptions};
 use std::io::{ErrorKind, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[tauri::command]
@@ -41,6 +41,40 @@ pub fn save_markdown_atomic(path: String, content: String) -> Result<(), String>
         return Err(e.to_string());
     }
     Ok(())
+}
+
+// ponytail: data는 JSON 배열로 넘어온다. 수 MB 이미지가 느리면 tauri::ipc::Request raw body로 교체.
+#[tauri::command]
+pub fn save_asset(dir: String, file_name: String, data: Vec<u8>) -> Result<String, String> {
+    if file_name.is_empty() || file_name.starts_with('.') || file_name.contains(['/', '\\']) {
+        return Err(format!("invalid asset file name: {file_name}"));
+    }
+    let assets = Path::new(&dir).join("assets");
+    fs::create_dir_all(&assets).map_err(|e| e.to_string())?;
+    let (stem, ext) = match file_name.rsplit_once('.') {
+        Some((s, e)) if !s.is_empty() => (s.to_string(), format!(".{e}")),
+        _ => (file_name.clone(), String::new()),
+    };
+    for n in 0..100u32 {
+        let name = if n == 0 {
+            file_name.clone()
+        } else {
+            format!("{stem}-{n}{ext}")
+        };
+        match OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(assets.join(&name))
+        {
+            Ok(mut file) => {
+                file.write_all(&data).map_err(|e| e.to_string())?;
+                return Ok(format!("assets/{name}"));
+            }
+            Err(e) if e.kind() == ErrorKind::AlreadyExists => continue,
+            Err(e) => return Err(e.to_string()),
+        }
+    }
+    Err(format!("too many assets named {file_name}"))
 }
 
 #[cfg(test)]
@@ -107,5 +141,42 @@ mod tests {
     #[test]
     fn read_missing_file_is_err() {
         assert!(read_markdown("/nonexistent/x.md".into()).is_err());
+    }
+
+    #[test]
+    fn save_asset_writes_under_assets_and_returns_relative_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let rel = save_asset(
+            dir.path().to_string_lossy().into(),
+            "a.png".into(),
+            vec![1, 2, 3],
+        )
+        .unwrap();
+        assert_eq!(rel, "assets/a.png");
+        assert_eq!(
+            fs::read(dir.path().join("assets/a.png")).unwrap(),
+            vec![1, 2, 3]
+        );
+    }
+
+    #[test]
+    fn save_asset_adds_suffix_on_collision() {
+        let dir = tempfile::tempdir().unwrap();
+        let d: String = dir.path().to_string_lossy().into();
+        save_asset(d.clone(), "a.png".into(), vec![1]).unwrap();
+        let second = save_asset(d.clone(), "a.png".into(), vec![2]).unwrap();
+        let third = save_asset(d, "a.png".into(), vec![3]).unwrap();
+        assert_eq!(second, "assets/a-1.png");
+        assert_eq!(third, "assets/a-2.png");
+        assert_eq!(fs::read(dir.path().join("assets/a.png")).unwrap(), vec![1]);
+    }
+
+    #[test]
+    fn save_asset_rejects_path_traversal_and_hidden_names() {
+        let dir = tempfile::tempdir().unwrap();
+        let d: String = dir.path().to_string_lossy().into();
+        assert!(save_asset(d.clone(), "../x.png".into(), vec![1]).is_err());
+        assert!(save_asset(d.clone(), ".hidden".into(), vec![1]).is_err());
+        assert!(save_asset(d, "".into(), vec![1]).is_err());
     }
 }
