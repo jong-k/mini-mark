@@ -12,7 +12,7 @@
 
 - 디렉터리 구조는 평면(flat)으로 유지한다. `src/` 바로 아래에 파일을 두고, 순수 유틸리티만 `src/lib/`에 모은다. FSD나 레이어 구조를 적용하지 않는다.
 - `src/` 파일 수가 15개를 넘으면 기능별 폴더(예: `editor/`, `document/`, `images/`)로 옮긴다. 그 전에는 폴더를 만들지 않는다.
-- 에디터 본문은 React 상태에 두지 않는다. 본문 접근은 `EditorHandle { getValue, setValue }` 인터페이스를 통해서만 한다. React 상태는 `filePath`, `isDirty` 같은 문서 메타데이터만 가진다.
+- 에디터 본문은 React 상태에 두지 않는다. 본문 접근은 `EditorHandle { getValue, setValue, setFilePath }` 인터페이스를 통해서만 한다. React 상태는 `filePath`, `isDirty` 같은 문서 메타데이터만 가진다.
 - 에디터 엔진 교체(textarea, Milkdown)는 `EditorHandle` 구현체 교체로 끝나야 한다. 상위 컴포넌트가 엔진 API를 직접 호출하지 않는다.
 - Tauri `invoke`와 플러그인 호출은 `src/lib/tauri.ts` 래퍼를 거친다. 컴포넌트에서 `invoke`를 직접 호출하지 않는다.
 - 순수 함수(포매터, 타이틀, 단축키 매칭)는 Vitest로 테스트한다. Tauri 연동은 `pnpm tauri dev`로 수동 검증한다.
