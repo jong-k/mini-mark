@@ -2,7 +2,7 @@ import { Editor, editorViewCtx, remarkStringifyOptionsCtx, rootCtx, schemaCtx } 
 import type { Ctx } from "@milkdown/kit/ctx";
 import { history } from "@milkdown/kit/plugin/history";
 import { upload, uploadConfig } from "@milkdown/kit/plugin/upload";
-import { codeBlockSchema, commonmark } from "@milkdown/kit/preset/commonmark";
+import { codeBlockSchema, commonmark, imageSchema } from "@milkdown/kit/preset/commonmark";
 import { gfm } from "@milkdown/kit/preset/gfm";
 import type { Node } from "@milkdown/kit/prose/model";
 import { Plugin, PluginKey } from "@milkdown/kit/prose/state";
@@ -39,10 +39,37 @@ const codeBlockWithMeta = codeBlockSchema.extendSchema((prev) => (ctx) => {
   };
 });
 
-// 현재 문서 경로. 이미지 상대 경로의 기준 폴더이자 붙여넣은 이미지의 저장 위치다.
-const documentPath = $ctx<string | null, "documentPath">(null, "documentPath");
+// basePath: 모델의 상대 경로 기준 폴더. 문서를 불러오거나 처음 저장할 때 정해지고 그 뒤로 고정된다.
+// filePath: 현재 파일. 붙여넣은 이미지의 저장 위치이고 getValue가 상대 경로를 이 파일 기준으로 다시 쓴다.
+// 다른 폴더로 저장해도 본문을 고치지 않으므로 undo 기록과 진행 중인 업로드가 가리키는 경로가 어긋나지 않는다.
+interface DocumentPath {
+  basePath: string | null;
+  filePath: string | null;
+}
+const documentPath = $ctx<DocumentPath, "documentPath">({ basePath: null, filePath: null }, "documentPath");
 const IMAGE_SRC_KEY = new PluginKey<DecorationSet>("imageSrc");
 const dirOf = (path: string) => path.slice(0, path.lastIndexOf("/"));
+
+// 저장 위치가 basePath와 다른 폴더면 직렬화 시점에만 상대 경로를 다시 계산한다.
+const imageWithRelocatedSrc = imageSchema.extendSchema((prev) => (ctx) => {
+  const base = prev(ctx);
+  return {
+    ...base,
+    toMarkdown: {
+      match: base.toMarkdown.match,
+      runner: (state, node) => {
+        const { basePath, filePath } = ctx.get(documentPath.key);
+        const moved = basePath !== null && filePath !== null && dirOf(basePath) !== dirOf(filePath);
+        const file = moved && !node.attrs.src.startsWith("/") ? imageFilePath(node.attrs.src, basePath) : null;
+        state.addNode("image", undefined, undefined, {
+          title: node.attrs.title,
+          url: file === null ? node.attrs.src : relativeImageSrc(file, filePath!),
+          alt: node.attrs.alt,
+        });
+      },
+    },
+  };
+});
 
 // 화면의 img src만 asset URL로 바꾼다. 모델과 클립보드 직렬화(toDOM)는 원문 경로를 유지한다.
 // toDOM에서 바꾸면 replaceAll(view.updateState)이 node.eq가 참인 노드의 DOM을 재사용해 문서 전환 시 갱신되지 않는다.
@@ -52,7 +79,7 @@ const imageSrc = $prose((ctx) => {
     const decorations: Decoration[] = [];
     doc.descendants((node, pos) => {
       if (node.type.name !== "image") return;
-      const file = imageFilePath(node.attrs.src, ctx.get(documentPath.key));
+      const file = imageFilePath(node.attrs.src, ctx.get(documentPath.key).basePath);
       // 항상 src를 넣는다. 데코레이션이 사라지면 ProseMirror가 속성을 지워 img가 빈 src로 남는다.
       decorations.push(
         Decoration.node(pos, pos + node.nodeSize, { src: file === null ? node.attrs.src : assetUrl(file) }),
@@ -72,8 +99,8 @@ const imageSrc = $prose((ctx) => {
 
 // 실패해도 throw하지 않는다. upload 플러그인은 uploader가 reject하면 자리표시자를 지우지 않는다.
 async function uploadImages(files: FileList, ctx: Ctx): Promise<Node[]> {
-  const path = ctx.get(documentPath.key);
-  if (path === null) {
+  const { basePath, filePath } = ctx.get(documentPath.key);
+  if (filePath === null || basePath === null) {
     await showError("이미지를 넣으려면 먼저 문서를 저장하세요.");
     return [];
   }
@@ -83,8 +110,10 @@ async function uploadImages(files: FileList, ctx: Ctx): Promise<Node[]> {
     if (!file.type.startsWith("image/")) continue;
     try {
       const data = Array.from(new Uint8Array(await file.arrayBuffer()));
-      const src = await saveAsset(dirOf(path), assetFileName(file.name, file.type, new Date()), data);
-      nodes.push(image.create({ src, alt: src.slice("assets/".length).replace(/\.[^.]*$/, "") }));
+      const rel = await saveAsset(dirOf(filePath), assetFileName(file.name, file.type, new Date()), data);
+      // 모델 경로는 basePath 기준. 업로드 중 다른 폴더로 저장해도 파일은 시작 시점 폴더에 있다.
+      const src = relativeImageSrc(`${dirOf(filePath)}/${rel}`, basePath);
+      nodes.push(image.create({ src, alt: rel.slice("assets/".length).replace(/\.[^.]*$/, "") }));
     } catch (err) {
       await showError(String(err));
     }
@@ -138,6 +167,7 @@ export function createMarkdownEditor(root: HTMLElement, onChange: () => void): P
     })
     .use(commonmark)
     .use(codeBlockWithMeta)
+    .use(imageWithRelocatedSrc)
     .use(gfm)
     .use(taskToggle)
     .use(history)
@@ -158,23 +188,21 @@ export function editorHandle(editor: Editor): EditorHandle {
     setValue: (value) => {
       const raw = value.match(/^\uFEFF?---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)(?:\r?\n)*/)?.[0] ?? "";
       frontMatter = raw.replace(/\r\n/g, "\n");
-      editor.action(replaceAll(value.slice(raw.length), true));
+      editor.action((ctx) => {
+        // 불러온 본문의 상대 경로는 현재 파일 기준이다.
+        ctx.update(documentPath.key, (d) => ({ ...d, basePath: d.filePath }));
+        replaceAll(value.slice(raw.length), true)(ctx);
+      });
     },
     setFilePath: (path) =>
       editor.action((ctx) => {
-        const prev = ctx.get(documentPath.key);
-        ctx.set(documentPath.key, path);
+        // 새 문서(null)나 첫 저장이면 기준 폴더도 따라간다. 그 외에는 기준 폴더를 유지한다.
+        ctx.update(documentPath.key, (d) => ({
+          filePath: path,
+          basePath: d.basePath === null || path === null ? path : d.basePath,
+        }));
         const view = ctx.get(editorViewCtx);
-        const tr = view.state.tr.setMeta(IMAGE_SRC_KEY, true).setMeta("addToHistory", false);
-        // 다른 폴더로 저장하면 상대 경로 이미지가 원래 파일을 계속 가리키도록 경로를 다시 쓴다. 같은 함수로 되돌릴 수 있다.
-        if (prev !== null && path !== null && dirOf(prev) !== dirOf(path)) {
-          view.state.doc.descendants((node, pos) => {
-            if (node.type.name !== "image" || node.attrs.src.startsWith("/")) return;
-            const file = imageFilePath(node.attrs.src, prev);
-            if (file !== null) tr.setNodeMarkup(pos, undefined, { ...node.attrs, src: relativeImageSrc(file, path) });
-          });
-        }
-        view.dispatch(tr);
+        view.dispatch(view.state.tr.setMeta(IMAGE_SRC_KEY, true));
       }),
   };
 }

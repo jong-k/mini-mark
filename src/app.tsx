@@ -60,7 +60,7 @@ export default function App() {
     return run(async () => {
       const h = editor.current;
       if (!h) return;
-      // 다른 폴더면 상대 경로 이미지를 새 위치 기준으로 다시 쓴다. getValue보다 먼저 불러야 한다.
+      // getValue가 이 경로 기준으로 상대 경로 이미지를 직렬화한다. 먼저 불러야 한다.
       h.setFilePath(path);
       const source = h.getValue();
       try {

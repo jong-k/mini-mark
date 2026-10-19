@@ -215,9 +215,45 @@ it("rewrites relative image src when the document moves to another folder", asyn
   handle.setFilePath("/b/n.md");
   expect(handle.getValue()).toBe("![pic](../a/assets/p.png) ![abs](/x/q.png) ![web](https://example.com/r.png)\n");
   expect(imageSrc()).toBe("asset://localhost/a/assets/p.png");
-  expect(onChange).toHaveBeenCalledTimes(1);
+  expect(onChange).not.toHaveBeenCalled();
   handle.setFilePath("/a/n.md");
   expect(handle.getValue()).toBe("![pic](assets/p.png) ![abs](/x/q.png) ![web](https://example.com/r.png)\n");
+});
+
+it("undo after moving the document restores image paths against the original folder", async () => {
+  const { handle, editor, runUndo } = await setup();
+  handle.setFilePath("/a/n.md");
+  handle.setValue("![pic](assets/p.png)\n");
+  editor.action((ctx) => {
+    const view = ctx.get(editorViewCtx);
+    view.dispatch(view.state.tr.delete(1, 2)); // 이미지 삭제
+  });
+  expect(handle.getValue()).toBe("");
+  handle.setFilePath("/b/n.md");
+  runUndo();
+  expect(imageSrc()).toBe("asset://localhost/a/assets/p.png");
+  expect(handle.getValue()).toBe("![pic](../a/assets/p.png)\n");
+});
+
+it("upload started before moving the document keeps pointing at the saved file", async () => {
+  const { handle, editor } = await setup();
+  handle.setFilePath("/a/n.md");
+  handle.setValue("x\n");
+  let finish: (rel: string) => void = () => {};
+  vi.mocked(saveAsset).mockImplementationOnce(() => new Promise((r) => (finish = r)));
+  const file = new File([new Uint8Array([1])], "image.png", { type: "image/png" });
+  const pending = runUploader(editor, [file]);
+  await vi.waitFor(() => expect(saveAsset).toHaveBeenCalled());
+  handle.setFilePath("/b/n.md");
+  finish("assets/image-1.png");
+  const nodes = (await pending) as Node[];
+  expect(saveAsset).toHaveBeenCalledWith("/a", expect.any(String), [1]);
+  editor.action((ctx) => {
+    const view = ctx.get(editorViewCtx);
+    view.dispatch(view.state.tr.insert(1, nodes[0]!));
+  });
+  expect(imageSrc()).toBe("asset://localhost/a/assets/image-1.png");
+  expect(handle.getValue()).toBe("![image-1](../a/assets/image-1.png)x\n");
 });
 
 it("does not rewrite image src on the first save of an untitled document", async () => {
