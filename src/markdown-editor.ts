@@ -1,22 +1,33 @@
 import { Editor, remarkStringifyOptionsCtx, rootCtx } from "@milkdown/kit/core";
 import { history } from "@milkdown/kit/plugin/history";
-import { listener, listenerCtx } from "@milkdown/kit/plugin/listener";
 import { commonmark } from "@milkdown/kit/preset/commonmark";
 import { gfm } from "@milkdown/kit/preset/gfm";
-import { getMarkdown, replaceAll } from "@milkdown/kit/utils";
+import { Plugin } from "@milkdown/kit/prose/state";
+import { $prose, getMarkdown, replaceAll } from "@milkdown/kit/utils";
 import type { EditorHandle } from "./editor";
 
 export function createMarkdownEditor(root: HTMLElement, onChange: () => void): Promise<Editor> {
+  // 동기 더티 신호. listener 플러그인은 200ms 디바운스라 그 안에 창을 닫으면 변경이 유실된다.
+  const docChanged = $prose(
+    () =>
+      new Plugin({
+        view: () => ({
+          update: (view, prevState) => {
+            if (view.state.doc !== prevState.doc) onChange();
+          },
+        }),
+      }),
+  );
+
   return Editor.make()
     .config((ctx) => {
       ctx.set(rootCtx, root);
       ctx.update(remarkStringifyOptionsCtx, (o) => ({ ...o, bullet: "-" as const }));
-      ctx.get(listenerCtx).updated(() => onChange());
     })
     .use(commonmark)
     .use(gfm)
     .use(history)
-    .use(listener)
+    .use(docChanged)
     .create();
 }
 

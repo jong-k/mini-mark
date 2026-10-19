@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { showError } from "./lib/tauri";
 import { createMarkdownEditor, editorHandle } from "./markdown-editor";
 
 /**
@@ -29,14 +30,14 @@ export function Editor({
     creating.then((e) => {
       if (cancelled) return e.destroy();
       handle = handleRef.current = editorHandle(e);
-    });
+    }).catch((err) => void showError(String(err)));
     return () => {
       cancelled = true;
       void creating.then((e) => {
         if (handle === null) return; // 생성 완료 전 취소: 위 then이 이미 destroy했다
         if (handleRef.current === handle) handleRef.current = null;
         return e.destroy();
-      });
+      }).catch(() => {}); // 생성 실패는 위에서 이미 표시했다
     };
   }, []);
 

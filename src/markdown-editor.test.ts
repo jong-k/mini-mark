@@ -1,16 +1,17 @@
 // @vitest-environment jsdom
 import { editorViewCtx } from "@milkdown/kit/core";
+import { undo } from "@milkdown/kit/prose/history";
 import { afterEach, expect, it, vi } from "vitest";
 import { formatMarkdown } from "./lib/format-markdown";
 import { createMarkdownEditor, editorHandle } from "./markdown-editor";
 
-const wait = () => new Promise((r) => setTimeout(r, 300));
 const onChange = vi.fn();
 let destroy: () => Promise<unknown> = async () => {};
+let root: HTMLElement | null = null;
 
 async function setup() {
   onChange.mockReset();
-  const root = document.createElement("div");
+  root = document.createElement("div");
   document.body.appendChild(root);
   const editor = await createMarkdownEditor(root, onChange);
   destroy = () => editor.destroy();
@@ -19,15 +20,25 @@ async function setup() {
       const view = ctx.get(editorViewCtx);
       view.dispatch(view.state.tr.insertText(text, 1));
     });
-  return { handle: editorHandle(editor), type };
+  const runUndo = () =>
+    editor.action((ctx) => {
+      const view = ctx.get(editorViewCtx);
+      undo(view.state, view.dispatch);
+    });
+  return { handle: editorHandle(editor), type, runUndo };
 }
 
-afterEach(() => destroy());
+afterEach(async () => {
+  const d = destroy;
+  destroy = async () => {};
+  await d();
+  root?.remove();
+  root = null;
+});
 
 it("setValue does not fire onChange", async () => {
   const { handle } = await setup();
   handle.setValue("# hi\n");
-  await wait();
   expect(onChange).not.toHaveBeenCalled();
 });
 
@@ -35,18 +46,15 @@ it("typing fires onChange", async () => {
   const { handle, type } = await setup();
   handle.setValue("hi\n");
   type("a");
-  await wait();
   expect(onChange).toHaveBeenCalledTimes(1);
 });
 
-it("ignores change pending before setValue", async () => {
-  const { handle, type } = await setup();
-  handle.setValue("hi\n");
-  await wait();
-  type("a");
+it("undo after setValue does not restore previous document", async () => {
+  const { handle, runUndo } = await setup();
+  handle.setValue("# old\n");
   handle.setValue("# new\n");
-  await wait();
-  expect(onChange).not.toHaveBeenCalled();
+  runUndo();
+  expect(handle.getValue()).toBe("# new\n");
 });
 
 const fixture = [
