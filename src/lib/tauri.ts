@@ -1,0 +1,46 @@
+import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import { ask, message, open, save } from "@tauri-apps/plugin-dialog";
+
+const MARKDOWN_FILTERS = [{ name: "Markdown", extensions: ["md", "markdown"] }];
+
+export function readMarkdown(path: string): Promise<string> {
+  return invoke<string>("read_markdown", { path });
+}
+
+export function saveMarkdownAtomic(path: string, content: string): Promise<void> {
+  return invoke<void>("save_markdown_atomic", { path, content });
+}
+
+export function pickOpenPath(): Promise<string | null> {
+  return open({ multiple: false, directory: false, filters: MARKDOWN_FILTERS });
+}
+
+export function pickSavePath(defaultPath?: string): Promise<string | null> {
+  return save({ defaultPath, filters: MARKDOWN_FILTERS });
+}
+
+export function confirmDiscard(): Promise<boolean> {
+  return ask("저장하지 않은 변경 사항이 있습니다. 버리시겠습니까?", {
+    title: "mini-mark",
+    kind: "warning",
+    okLabel: "버리기",
+    cancelLabel: "취소",
+  });
+}
+
+export async function showError(text: string): Promise<void> {
+  await message(text, { title: "mini-mark", kind: "error" });
+}
+
+export function setWindowTitle(title: string): Promise<void> {
+  return getCurrentWindow().setTitle(title);
+}
+
+export function onWindowCloseRequested(
+  handler: () => Promise<boolean>,
+): Promise<() => void> {
+  return getCurrentWindow().onCloseRequested(async (event) => {
+    if (!(await handler())) event.preventDefault();
+  });
+}
