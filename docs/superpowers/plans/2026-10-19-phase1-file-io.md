@@ -111,8 +111,8 @@ git commit -m "feat: 마크다운 읽기 및 원자적 저장 Rust 커맨드 추
 
 **Files:**
 - Modify: `package.json` (`vitest`, `prettier` 추가, `"test": "vitest run"` 스크립트)
-- Create: `src/lib/format.ts`
-- Test: `src/lib/format.test.ts`
+- Create: `src/lib/format-markdown.ts`
+- Test: `src/lib/format-markdown.test.ts`
 
 **Interfaces:**
 - Produces: `export async function formatMarkdown(source: string): Promise<string>`
@@ -125,7 +125,7 @@ Run: `pnpm add -D vitest && pnpm add prettier`
 
 ```ts
 import { describe, expect, it } from "vitest";
-import { formatMarkdown } from "./format";
+import { formatMarkdown } from "./format-markdown";
 
 describe("formatMarkdown", () => {
   it("normalizes list markers and trailing newline", async () => {
@@ -143,7 +143,7 @@ describe("formatMarkdown", () => {
       },
     }));
     vi.resetModules();
-    const { formatMarkdown: mocked } = await import("./format");
+    const { formatMarkdown: mocked } = await import("./format-markdown");
     expect(await mocked("x")).toBe("x");
   });
 });
@@ -154,9 +154,9 @@ describe("formatMarkdown", () => {
 - [ ] **Step 3: 테스트 실패 확인**
 
 Run: `pnpm test`
-Expected: FAIL, `Cannot find module './format'`
+Expected: FAIL, `Cannot find module './format-markdown'`
 
-- [ ] **Step 4: `format.ts` 구현**
+- [ ] **Step 4: `format-markdown.ts` 구현**
 
 `prettier/standalone`과 `prettier/plugins/markdown`은 정적 import 금지. 함수 안에서 `await import()`로 지연 로드해 콜드 스타트에서 Prettier 파싱 비용을 뺀다. 첫 저장 때 한 번 로드되고 이후 모듈 캐시에 남는다.
 
@@ -194,7 +194,7 @@ Expected: `index-*.js` 외에 Prettier가 담긴 별도 청크(`standalone-*.js`
 - [ ] **Step 7: Commit**
 
 ```bash
-git add package.json pnpm-lock.yaml src/lib/format.ts src/lib/format.test.ts
+git add package.json pnpm-lock.yaml src/lib/format-markdown.ts src/lib/format-markdown.test.ts
 git commit -m "feat: Prettier standalone 마크다운 포매터 추가"
 ```
 
@@ -203,8 +203,8 @@ git commit -m "feat: Prettier standalone 마크다운 포매터 추가"
 ### Task 3: 창 타이틀 문자열 함수
 
 **Files:**
-- Create: `src/lib/title.ts`
-- Test: `src/lib/title.test.ts`
+- Create: `src/lib/window-title.ts`
+- Test: `src/lib/window-title.test.ts`
 
 **Interfaces:**
 - Produces: `export function windowTitle(filePath: string | null, isDirty: boolean): string`
@@ -213,7 +213,7 @@ git commit -m "feat: Prettier standalone 마크다운 포매터 추가"
 
 ```ts
 import { expect, it } from "vitest";
-import { windowTitle } from "./title";
+import { windowTitle } from "./window-title";
 
 it("untitled clean", () => expect(windowTitle(null, false)).toBe("Untitled"));
 it("untitled dirty", () => expect(windowTitle(null, true)).toBe("• Untitled"));
@@ -226,9 +226,9 @@ it("file dirty", () =>
 - [ ] **Step 2: 테스트 실패 확인**
 
 Run: `pnpm test`
-Expected: FAIL, `Cannot find module './title'`
+Expected: FAIL, `Cannot find module './window-title'`
 
-- [ ] **Step 3: `title.ts` 구현**
+- [ ] **Step 3: `window-title.ts` 구현**
 
 basename은 `filePath.split("/").pop()`. Node `path` 모듈 사용 금지(브라우저 번들).
 
@@ -240,7 +240,7 @@ Expected: PASS
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/lib/title.ts src/lib/title.test.ts
+git add src/lib/window-title.ts src/lib/window-title.test.ts
 git commit -m "feat: 창 타이틀 문자열 생성 함수 추가"
 ```
 
@@ -249,8 +249,8 @@ git commit -m "feat: 창 타이틀 문자열 생성 함수 추가"
 ### Task 4: 단축키 매칭 함수
 
 **Files:**
-- Create: `src/lib/shortcuts.ts`
-- Test: `src/lib/shortcuts.test.ts`
+- Create: `src/lib/document-shortcuts.ts`
+- Test: `src/lib/document-shortcuts.test.ts`
 
 **Interfaces:**
 - Produces: `export type DocumentAction = "new" | "open" | "save" | "saveAs"`
@@ -260,7 +260,7 @@ git commit -m "feat: 창 타이틀 문자열 생성 함수 추가"
 
 ```ts
 import { expect, it } from "vitest";
-import { matchShortcut } from "./shortcuts";
+import { matchShortcut } from "./document-shortcuts";
 
 const k = (key: string, shift = false, meta = true) => ({ key, shiftKey: shift, metaKey: meta });
 
@@ -275,9 +275,9 @@ it("unrelated key is null", () => expect(matchShortcut(k("k"))).toBeNull());
 - [ ] **Step 2: 테스트 실패 확인**
 
 Run: `pnpm test`
-Expected: FAIL, `Cannot find module './shortcuts'`
+Expected: FAIL, `Cannot find module './document-shortcuts'`
 
-- [ ] **Step 3: `shortcuts.ts` 구현**
+- [ ] **Step 3: `document-shortcuts.ts` 구현**
 
 `key.toLowerCase()`로 비교. Shift 눌리면 `key`가 대문자 `"S"`로 오므로 소문자 변환 필수. `saveAs` 분기를 `save`보다 먼저 검사.
 
@@ -289,7 +289,7 @@ Expected: PASS
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/lib/shortcuts.ts src/lib/shortcuts.test.ts
+git add src/lib/document-shortcuts.ts src/lib/document-shortcuts.test.ts
 git commit -m "feat: 문서 단축키 매칭 함수 추가"
 ```
 
@@ -299,7 +299,7 @@ git commit -m "feat: 문서 단축키 매칭 함수 추가"
 
 **Files:**
 - Create: `src/lib/tauri.ts`
-- Create: `src/Editor.tsx`
+- Create: `src/editor.tsx`
 - Modify: `src-tauri/capabilities/default.json`
 
 **Interfaces:**
@@ -311,7 +311,7 @@ git commit -m "feat: 문서 단축키 매칭 함수 추가"
   - `export function pickSavePath(defaultPath?: string): Promise<string | null>` — `save({ defaultPath, filters: 동일 })`
   - `export function confirmDiscard(): Promise<boolean>` — `ask("저장하지 않은 변경 사항이 있습니다. 버리시겠습니까?", { title: "mini-mark", kind: "warning", okLabel: "버리기", cancelLabel: "취소" })`
   - `export function setWindowTitle(title: string): Promise<void>` — `getCurrentWindow().setTitle`
-- Produces (`src/Editor.tsx`):
+- Produces (`src/editor.tsx`):
   - `export interface EditorHandle { getValue(): string; setValue(value: string): void }`
   - `export function Editor(props: { handleRef: React.RefObject<EditorHandle | null>; onChange: () => void }): JSX.Element`
   - 비제어 `<textarea>`. `useImperativeHandle(handleRef, ...)`로 `getValue`/`setValue`를 DOM `value`에 직접 연결. `onChange`는 `onInput`에서 호출. 본문을 React 상태에 두지 않는다.
@@ -324,9 +324,9 @@ git commit -m "feat: 문서 단축키 매칭 함수 추가"
 
 위 시그니처대로. `invoke("read_markdown", { path })`, `invoke("save_markdown_atomic", { path, content })`.
 
-- [ ] **Step 3: `src/Editor.tsx` 작성**
+- [ ] **Step 3: `src/editor.tsx` 작성**
 
-위 시그니처대로. 스타일은 `width: 100%; height: 100vh; resize: none; border: 0; font: 14px/1.6 monospace; padding: 16px` 인라인 또는 `App.css`.
+위 시그니처대로. 스타일은 `width: 100%; height: 100vh; resize: none; border: 0; font: 14px/1.6 monospace; padding: 16px` 인라인 또는 `app.css`.
 
 - [ ] **Step 4: 타입 체크**
 
@@ -336,7 +336,7 @@ Expected: 에러 없음
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/lib/tauri.ts src/Editor.tsx src-tauri/capabilities/default.json
+git add src/lib/tauri.ts src/editor.tsx src-tauri/capabilities/default.json
 git commit -m "feat: Tauri 래퍼와 textarea 에디터 컴포넌트 추가"
 ```
 
@@ -345,15 +345,16 @@ git commit -m "feat: Tauri 래퍼와 textarea 에디터 컴포넌트 추가"
 ### Task 6: 문서 상태와 열기/저장/새 문서 흐름 연결
 
 **Files:**
-- Modify: `src/App.tsx` (전체 교체)
-- Modify: `src/App.css` (템플릿 스타일 제거, 본문/html 마진 0)
+- Rename: `src/App.tsx` → `src/app.tsx` (`git mv`, 내용 전체 교체)
+- Rename: `src/App.css` → `src/app.css` (`git mv`, 템플릿 스타일 제거, 본문/html 마진 0)
+- Modify: `src/main.tsx` (import 경로 `./app`)
 - Delete: `src/assets/react.svg`, `public/vite.svg`, `public/tauri.svg`
 
 **Interfaces:**
 - Consumes: Task 2 `formatMarkdown`, Task 3 `windowTitle`, Task 4 `matchShortcut`, Task 5 전체
 - Produces: 없음 (최상위 컴포넌트)
 
-- [ ] **Step 1: `App.tsx` 작성**
+- [ ] **Step 1: `app.tsx` 작성**
 
 상태: `const [filePath, setFilePath] = useState<string | null>(null)`, `const [isDirty, setIsDirty] = useState(false)`, `const editor = useRef<EditorHandle>(null)`.
 
@@ -396,7 +397,8 @@ Run: `pnpm tauri dev`
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/App.tsx src/App.css
+git mv src/App.tsx src/app.tsx && git mv src/App.css src/app.css
+git add src/app.tsx src/app.css src/main.tsx
 git rm src/assets/react.svg public/vite.svg public/tauri.svg
 git commit -m "feat: 문서 열기, 저장, 새 문서 흐름과 단축키 연결"
 ```
@@ -406,7 +408,7 @@ git commit -m "feat: 문서 열기, 저장, 새 문서 흐름과 단축키 연�
 ### Task 7: 미저장 경고 방어
 
 **Files:**
-- Modify: `src/App.tsx`
+- Modify: `src/app.tsx`
 - Modify: `docs/PLAN.md` (1단계 체크박스 완료 표시)
 
 **Interfaces:**
@@ -440,6 +442,6 @@ Run: `pnpm tauri dev`
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/App.tsx docs/PLAN.md
+git add src/app.tsx docs/PLAN.md
 git commit -m "feat: 미저장 상태에서 닫기, 열기, 새 문서 시 경고 추가"
 ```
