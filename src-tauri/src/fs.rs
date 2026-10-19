@@ -1,4 +1,5 @@
 use std::fs::{self, File};
+use std::io::Write;
 use std::path::Path;
 
 #[tauri::command]
@@ -14,8 +15,11 @@ pub fn save_markdown_atomic(path: String, content: String) -> Result<(), String>
         .ok_or_else(|| "invalid file path".to_string())?
         .to_string_lossy();
     let tmp = path.with_file_name(format!("{file_name}.tmp"));
-    let result = fs::write(&tmp, content)
-        .and_then(|_| File::open(&tmp)?.sync_all())
+    let result = File::create(&tmp)
+        .and_then(|mut f| {
+            f.write_all(content.as_bytes())?;
+            f.sync_all()
+        })
         // ponytail: rename은 원본 inode를 교체하므로 원본의 권한/xattr은 유지되지 않는다. 필요해지면 metadata 복사 추가.
         .and_then(|_| fs::rename(&tmp, path));
     if let Err(e) = result {
