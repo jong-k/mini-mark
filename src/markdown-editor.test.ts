@@ -101,3 +101,13 @@ it("setValue with empty string clears the document", async () => {
   handle.setValue("");
   expect(handle.getValue()).toBe("");
 });
+
+it("preserves leading front matter across setValue and getValue", async () => {
+  const { handle } = await setup();
+  const doc = "---\ntitle: x\n---\n\n# 본문\n";
+  handle.setValue(doc);
+  expect(handle.getValue()).toBe(doc);
+  expect(handle.getValue()).not.toContain("***");
+  handle.setValue("plain\n");
+  expect(handle.getValue()).toBe("plain\n");
+});

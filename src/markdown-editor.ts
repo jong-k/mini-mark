@@ -32,9 +32,14 @@ export function createMarkdownEditor(root: HTMLElement, onChange: () => void): P
 }
 
 export function editorHandle(editor: Editor): EditorHandle {
+  // front matter는 에디터에서 편집하지 않고 보존만 한다. commonmark 파서가 구분선과 제목으로 망가뜨린다.
+  let frontMatter = "";
   return {
-    getValue: () => editor.action(getMarkdown()),
+    getValue: () => frontMatter + editor.action(getMarkdown()),
     // flush=true: 교체가 히스토리에 쌓이거나 onChange를 발생시키지 않게 한다.
-    setValue: (value) => editor.action(replaceAll(value, true)),
+    setValue: (value) => {
+      frontMatter = value.match(/^---\r?\n[\s\S]*?\r?\n---\r?\n(?:\r?\n)*/)?.[0] ?? "";
+      editor.action(replaceAll(value.slice(frontMatter.length), true));
+    },
   };
 }
