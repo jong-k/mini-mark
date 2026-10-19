@@ -3,6 +3,7 @@ import { history } from "@milkdown/kit/plugin/history";
 import { codeBlockSchema, commonmark } from "@milkdown/kit/preset/commonmark";
 import { gfm } from "@milkdown/kit/preset/gfm";
 import { Plugin } from "@milkdown/kit/prose/state";
+import type { EditorView } from "@milkdown/kit/prose/view";
 import { $prose, getMarkdown, replaceAll } from "@milkdown/kit/utils";
 import type { EditorHandle } from "./editor";
 
@@ -32,6 +33,28 @@ const codeBlockWithMeta = codeBlockSchema.extendSchema((prev) => (ctx) => {
   };
 });
 
+export function toggleTaskItem(view: EditorView, pos: number): boolean {
+  const node = view.state.doc.nodeAt(pos);
+  if (!node || node.type.name !== "list_item" || node.attrs.checked == null) return false;
+  view.dispatch(
+    view.state.tr.setNodeMarkup(pos, undefined, { ...node.attrs, checked: !node.attrs.checked }),
+  );
+  return true;
+}
+
+// 체크박스는 CSS ::before라 클릭 target이 li 자체다. 본문 텍스트 클릭은 target이 p나 text라 걸리지 않는다.
+const taskToggle = $prose(
+  () =>
+    new Plugin({
+      props: {
+        handleClickOn: (view, _pos, _node, nodePos, event) =>
+          event.target instanceof HTMLElement &&
+          event.target.dataset.itemType === "task" &&
+          toggleTaskItem(view, nodePos),
+      },
+    }),
+);
+
 export function createMarkdownEditor(root: HTMLElement, onChange: () => void): Promise<Editor> {
   // 동기 더티 신호. listener 플러그인은 200ms 디바운스라 그 안에 창을 닫으면 변경이 유실된다.
   const docChanged = $prose(
@@ -53,6 +76,7 @@ export function createMarkdownEditor(root: HTMLElement, onChange: () => void): P
     .use(commonmark)
     .use(codeBlockWithMeta)
     .use(gfm)
+    .use(taskToggle)
     .use(history)
     .use(docChanged)
     .create();

@@ -3,7 +3,7 @@ import { editorViewCtx } from "@milkdown/kit/core";
 import { undo } from "@milkdown/kit/prose/history";
 import { afterEach, expect, it, vi } from "vitest";
 import { formatMarkdown } from "./lib/format-markdown";
-import { createMarkdownEditor, editorHandle } from "./markdown-editor";
+import { createMarkdownEditor, editorHandle, toggleTaskItem } from "./markdown-editor";
 
 const onChange = vi.fn();
 let destroy: () => Promise<unknown> = async () => {};
@@ -25,7 +25,7 @@ async function setup() {
       const view = ctx.get(editorViewCtx);
       undo(view.state, view.dispatch);
     });
-  return { handle: editorHandle(editor), type, runUndo };
+  return { handle: editorHandle(editor), type, runUndo, editor };
 }
 
 afterEach(async () => {
@@ -132,4 +132,24 @@ it("preserves code fence meta", async () => {
   const doc = "```js title=example {1,3}\nconst a = 1;\n```\n";
   handle.setValue(doc);
   expect(handle.getValue()).toBe(doc);
+});
+
+it("toggles task item checked state", async () => {
+  const { handle, editor } = await setup();
+  handle.setValue("- [ ] a\n");
+  // doc(0) > bullet_list(0) > list_item(1)
+  editor.action((ctx) => toggleTaskItem(ctx.get(editorViewCtx), 1));
+  expect(handle.getValue()).toBe("- [x] a\n");
+  expect(onChange).toHaveBeenCalledTimes(1);
+  editor.action((ctx) => toggleTaskItem(ctx.get(editorViewCtx), 1));
+  expect(handle.getValue()).toBe("- [ ] a\n");
+});
+
+it("ignores toggle on a plain list item", async () => {
+  const { handle, editor } = await setup();
+  handle.setValue("- a\n");
+  const toggled = editor.action((ctx) => toggleTaskItem(ctx.get(editorViewCtx), 1));
+  expect(toggled).toBe(false);
+  expect(handle.getValue()).toBe("- a\n");
+  expect(onChange).not.toHaveBeenCalled();
 });
