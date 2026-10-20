@@ -40,6 +40,7 @@
 ### Task 1: Finder 연동 (`fileAssociations`와 `RunEvent::Opened`)
 
 **Files:**
+
 - Modify: `src-tauri/tauri.conf.json` (`bundle.fileAssociations`, `bundle.targets`)
 - Modify: `src-tauri/src/lib.rs` (`OpenedFile` 상태, `take_opened_file` 커맨드, `first_file_path`, `.build().run()` 전환, 테스트)
 - Modify: `src/lib/tauri.ts` (`takeOpenedFile`, `onOpenFileRequested`)
@@ -47,6 +48,7 @@
 - Modify: `src/app.tsx` (`openDocument`를 `openPath(path)`로 분리, 준비 시 `takeOpenedFile`, `open-file` 리스너)
 
 **Interfaces:**
+
 - Produces (Rust, `lib.rs`):
   - `#[derive(Default)] struct OpenedFile { pending: Option<String>, ready: bool }`, managed state는 `Mutex<OpenedFile>`
   - `fn first_file_path(urls: &[tauri::Url]) -> Option<String>`: 첫 `file://` URL을 절대 경로 문자열로. 없으면 `None`.
@@ -132,6 +134,7 @@ Expected: 컴파일 에러. `first_file_path`, `OpenedFile`이 없음.
 - [ ] **Step 4: `OpenedFile`, `first_file_path`, `take_opened_file` 구현과 `Opened` 처리**
 
 `lib.rs`:
+
 - `first_file_path`: `urls.iter().filter(|u| u.scheme() == "file").find_map(|u| u.to_file_path().ok()).map(|p| p.to_string_lossy().into_owned())`
 - `OpenedFile::opened`, `OpenedFile::take`는 인터페이스대로. `tauri::Builder`에 `.manage(Mutex::new(OpenedFile::default()))`, `generate_handler!`에 `take_opened_file` 추가.
 - `.run(tauri::generate_context!())`를 `.build(tauri::generate_context!()).expect(...).run(|app, event| { ... })`로 바꾼다. 클로저:
@@ -223,6 +226,7 @@ git commit -m "feat(app): Finder 파일 연결과 열기 이벤트 처리 추가
 ### Task 2: 외부 변경 감지와 다시 불러오기
 
 **Files:**
+
 - Modify: `src-tauri/src/fs.rs` (`file_modified_at` 커맨드, 테스트 2개)
 - Modify: `src-tauri/src/lib.rs` (`generate_handler!`에 `fs::file_modified_at`)
 - Create: `src/lib/file-watch.ts`, `src/lib/file-watch.test.ts`
@@ -230,6 +234,7 @@ git commit -m "feat(app): Finder 파일 연결과 열기 이벤트 처리 추가
 - Modify: `src/app.tsx` (`knownMtime` ref, 폴링 이펙트, `openPath`/`saveDocument` 갱신)
 
 **Interfaces:**
+
 - Produces (Rust): `#[tauri::command] pub fn file_modified_at(path: String) -> Result<u64, String>`. 수정 시각을 UNIX epoch 기준 밀리초로 반환. 파일이 없으면 `Err`.
 - Produces (TS, `src/lib/file-watch.ts`):
   - `export type WatchAction = "none" | "reload" | "ask"`
@@ -317,12 +322,18 @@ function deps(over: Partial<FileWatchDeps>): FileWatchDeps {
 }
 
 it("reloads with the new baseline when clean", async () => {
-  await expect(pollFileChange(deps({}))).resolves.toEqual({ type: "reload", known: 20, content: "new" });
+  await expect(pollFileChange(deps({}))).resolves.toEqual({
+    type: "reload",
+    known: 20,
+    content: "new",
+  });
 });
 
 it("keeps the edit and advances the baseline when the user declines", async () => {
   const read = vi.fn(async () => "new");
-  const result = await pollFileChange(deps({ isDirty: () => true, confirmReload: async () => false, read }));
+  const result = await pollFileChange(
+    deps({ isDirty: () => true, confirmReload: async () => false, read }),
+  );
   expect(result).toEqual({ type: "keep", known: 20 });
   expect(read).not.toHaveBeenCalled();
 });
@@ -333,7 +344,9 @@ it("discards the read when the document changed meanwhile", async () => {
     path = "/b.md"; // 읽는 동안 다른 문서가 열렸다
     return "a-content";
   };
-  await expect(pollFileChange(deps({ currentPath: () => path, read }))).resolves.toEqual({ type: "none" });
+  await expect(pollFileChange(deps({ currentPath: () => path, read }))).resolves.toEqual({
+    type: "none",
+  });
 });
 
 it("discards the read when the user typed meanwhile", async () => {
@@ -342,11 +355,21 @@ it("discards the read when the user typed meanwhile", async () => {
     dirty = true;
     return "new";
   };
-  await expect(pollFileChange(deps({ isDirty: () => dirty, read }))).resolves.toEqual({ type: "none" });
+  await expect(pollFileChange(deps({ isDirty: () => dirty, read }))).resolves.toEqual({
+    type: "none",
+  });
 });
 
 it("propagates read errors without touching the baseline", async () => {
-  await expect(pollFileChange(deps({ read: async () => { throw new Error("EACCES"); } }))).rejects.toThrow("EACCES");
+  await expect(
+    pollFileChange(
+      deps({
+        read: async () => {
+          throw new Error("EACCES");
+        },
+      }),
+    ),
+  ).rejects.toThrow("EACCES");
 });
 ```
 
@@ -364,6 +387,7 @@ Expected: FAIL. 모듈 없음.
 - [ ] **Step 8: `tauri.ts` 래퍼와 `app.tsx` 폴링**
 
 `app.tsx`:
+
 - `const knownMtime = useRef<number | null>(null);`
 - `openPath` 끝: `knownMtime.current = await fileModifiedAt(path).catch(() => null);`
 - `saveDocument`: `saveMarkdownAtomic` 호출 전에 `knownMtime.current = null`, 성공 후 `knownMtime.current = await fileModifiedAt(path).catch(() => null)`. 실패 시 `catch` 블록에서도 다시 읽는다.
@@ -429,6 +453,7 @@ git commit -m "feat(app): 외부 파일 변경 감지와 다시 불러오기 추
 ### Task 3: File 메뉴와 최근 파일 목록
 
 **Files:**
+
 - Create: `src-tauri/src/recent.rs` (목록 로직, 영속화, 서브메뉴 갱신, 테스트)
 - Create: `src-tauri/src/menu.rs` (메뉴 구성과 이벤트 처리를 `lib.rs`에서 이동)
 - Modify: `src-tauri/src/lib.rs` (`mod recent; mod menu;`, `RecentFiles` manage, `add_recent_file` 등록)
@@ -437,6 +462,7 @@ git commit -m "feat(app): 외부 파일 변경 감지와 다시 불러오기 추
 - Delete: `src/lib/document-shortcuts.ts`, `src/lib/document-shortcuts.test.ts`
 
 **Interfaces:**
+
 - Produces (Rust, `recent.rs`):
   - `pub const MAX_RECENT: usize = 10;`
   - `pub fn push_recent(list: &mut Vec<String>, path: &str)`: 같은 경로 제거 후 맨 앞에 삽입, `MAX_RECENT`로 자른다.
@@ -583,22 +609,24 @@ git commit -m "feat(app): File 메뉴와 최근 파일 목록 추가"
 ### Task 4: 성능 프로파일링
 
 **Files:**
+
 - Modify: `docs/PLAN.md` (4단계 아래 "측정 결과 (4단계)" 절 추가)
 - Modify(측정 결과에 따라서만): `src/markdown-editor.ts`
 
 **Interfaces:**
+
 - Consumes: Task 5 전에 릴리스 번들이 필요하므로 이 태스크에서 `pnpm tauri build`를 먼저 한 번 실행한다. 번들 산출물 검증은 Task 5가 맡는다.
 
 - [ ] **Step 1: 대용량 문서 생성**
 
-```bash
+````bash
 {
   for i in $(seq 1 3000); do
     printf '## 절 %d\n\n한글 본문 문단입니다. 마크다운 에디터의 타이핑 지연을 확인하기 위한 문장을 반복합니다. %d\n\n- 항목 하나\n- 항목 둘 **굵게** `코드`\n\n```ts\nconst v%d = %d;\n```\n\n' "$i" "$i" "$i" "$i"
   done
 } > /tmp/mini-mark-large.md
 ls -lh /tmp/mini-mark-large.md
-```
+````
 
 Expected: 약 600KB 이상. 2MB에 못 미치면 `seq` 상한을 10000으로 올린다.
 
@@ -662,11 +690,13 @@ git commit -m "docs(plan): 4단계 성능 측정 결과 기록"
 ### Task 5: 프로덕션 번들 검증과 계획 마감
 
 **Files:**
+
 - Modify: `src-tauri/tauri.conf.json` (`bundle.category`, `bundle.macOS.minimumSystemVersion`)
 - Modify: `src-tauri/Cargo.toml` (`description`, `authors`)
 - Modify: `docs/PLAN.md` (4단계 체크박스, 알려진 문제)
 
 **Interfaces:**
+
 - Consumes: Task 4가 만든 릴리스 번들. 설정을 바꾸므로 다시 빌드한다.
 
 - [ ] **Step 1: 번들 메타데이터 정리**

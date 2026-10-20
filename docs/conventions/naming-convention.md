@@ -50,12 +50,12 @@ export function Editor() {
 
 ## 6. 정리
 
-| 대상                  | 표기법                         | 예시                                   |
-| --------------------- | ------------------------------ | -------------------------------------- |
-| 애플리케이션 파일명   | kebab-case                     | `editor.tsx`, `window-title.ts`        |
-| 애플리케이션 디렉터리 | kebab-case                     | `src/lib`, `src-tauri/capabilities`    |
-| React 컴포넌트명      | PascalCase                     | `function Editor() { ... }`            |
-| React 훅 함수명       | `use` + camelCase              | `useDocument`                          |
-| 변수명, 함수명        | camelCase                      | `filePath`, `formatMarkdown`           |
-| 타입명, 인터페이스명  | PascalCase                     | `EditorHandle`, `DocumentAction`       |
-| 클라이언트 환경 변수  | `VITE_` + SCREAMING_SNAKE_CASE | `VITE_API_BASE_URL`                    |
+| 대상                  | 표기법                         | 예시                                |
+| --------------------- | ------------------------------ | ----------------------------------- |
+| 애플리케이션 파일명   | kebab-case                     | `editor.tsx`, `window-title.ts`     |
+| 애플리케이션 디렉터리 | kebab-case                     | `src/lib`, `src-tauri/capabilities` |
+| React 컴포넌트명      | PascalCase                     | `function Editor() { ... }`         |
+| React 훅 함수명       | `use` + camelCase              | `useDocument`                       |
+| 변수명, 함수명        | camelCase                      | `filePath`, `formatMarkdown`        |
+| 타입명, 인터페이스명  | PascalCase                     | `EditorHandle`, `DocumentAction`    |
+| 클라이언트 환경 변수  | `VITE_` + SCREAMING_SNAKE_CASE | `VITE_API_BASE_URL`                 |

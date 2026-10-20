@@ -29,7 +29,9 @@ import { $ctx, $inputRule, $prose, getMarkdown, replaceAll } from "@milkdown/kit
 
 // 기본 규칙은 제목 안에서 `# `를 입력하면 기존 레벨에 더한다(h1에서 `# `면 h2). 마크다운처럼 입력한 # 개수를 레벨로 쓴다.
 const headingInputRule = $inputRule((ctx) =>
-  textblockTypeInputRule(/^(#{1,6})\s$/, headingSchema.type(ctx), (match) => ({ level: match[1]!.length })),
+  textblockTypeInputRule(/^(#{1,6})\s$/, headingSchema.type(ctx), (match) => ({
+    level: match[1]!.length,
+  })),
 );
 import { prism } from "@milkdown/plugin-prism";
 import type { EditorHandle } from "./editor";
@@ -69,14 +71,23 @@ interface DocumentPath {
   basePath: string | null;
   filePath: string | null;
 }
-const documentPath = $ctx<DocumentPath, "documentPath">({ basePath: null, filePath: null }, "documentPath");
+const documentPath = $ctx<DocumentPath, "documentPath">(
+  { basePath: null, filePath: null },
+  "documentPath",
+);
 const IMAGE_SRC_KEY = new PluginKey<DecorationSet>("imageSrc");
 const dirOf = (path: string) => path.slice(0, path.lastIndexOf("/"));
 
 // 저장 위치가 basePath와 다른 폴더면 직렬화 시점에만 로컬 상대 경로를 다시 계산한다.
 function relocatedSrc(src: string, ctx: Ctx): string {
   const { basePath, filePath } = ctx.get(documentPath.key);
-  if (basePath === null || filePath === null || dirOf(basePath) === dirOf(filePath) || src.startsWith("/")) return src;
+  if (
+    basePath === null ||
+    filePath === null ||
+    dirOf(basePath) === dirOf(filePath) ||
+    src.startsWith("/")
+  )
+    return src;
   const file = localFilePath(src, basePath);
   return file === null ? src : relativeLocalSrc(file, filePath);
 }
@@ -129,7 +140,9 @@ const imageSrc = $prose((ctx) => {
       const file = localFilePath(node.attrs.src, ctx.get(documentPath.key).basePath);
       // 항상 src를 넣는다. 데코레이션이 사라지면 ProseMirror가 속성을 지워 img가 빈 src로 남는다.
       decorations.push(
-        Decoration.node(pos, pos + node.nodeSize, { src: file === null ? node.attrs.src : assetUrl(file) }),
+        Decoration.node(pos, pos + node.nodeSize, {
+          src: file === null ? node.attrs.src : assetUrl(file),
+        }),
       );
     });
     return decorations;
@@ -173,7 +186,11 @@ async function uploadImages(files: FileList, ctx: Ctx): Promise<Node[]> {
     if (!file.type.startsWith("image/")) continue;
     try {
       const data = new Uint8Array(await file.arrayBuffer());
-      const rel = await saveAsset(dirOf(filePath), assetFileName(file.name, file.type, new Date()), data);
+      const rel = await saveAsset(
+        dirOf(filePath),
+        assetFileName(file.name, file.type, new Date()),
+        data,
+      );
       // 모델 경로는 basePath 기준. 업로드 중 다른 폴더로 저장해도 파일은 시작 시점 폴더에 있다.
       const src = relativeLocalSrc(`${dirOf(filePath)}/${rel}`, basePath);
       nodes.push(image.create({ src, alt: rel.slice("assets/".length).replace(/\.[^.]*$/, "") }));
@@ -200,8 +217,15 @@ const taskItemAccessible = extendListItemSchemaForTask.extendSchema((prev) => (c
   return {
     ...base,
     toDOM: (node) => {
-      const [tag, attrs, ...rest] = base.toDOM!(node) as [string, Record<string, unknown>, ...unknown[]];
-      const task = node.attrs.checked == null ? {} : { role: "checkbox", "aria-checked": String(node.attrs.checked) };
+      const [tag, attrs, ...rest] = base.toDOM!(node) as [
+        string,
+        Record<string, unknown>,
+        ...unknown[],
+      ];
+      const task =
+        node.attrs.checked == null
+          ? {}
+          : { role: "checkbox", "aria-checked": String(node.attrs.checked) };
       return [tag, { ...attrs, ...task }, ...rest] as DOMOutputSpec;
     },
   };
@@ -213,7 +237,8 @@ const taskToggleKey = $prose(() =>
     "Mod-Enter": (state, _dispatch, view) => {
       const { $from } = state.selection;
       for (let depth = $from.depth; depth > 0; depth--) {
-        if ($from.node(depth).type.name === "list_item") return view !== undefined && toggleTaskItem(view, $from.before(depth));
+        if ($from.node(depth).type.name === "list_item")
+          return view !== undefined && toggleTaskItem(view, $from.before(depth));
       }
       return false;
     },
@@ -237,12 +262,15 @@ function clipboardMarkdown(slice: Slice, ctx: Ctx): string {
   const schema = ctx.get(schemaCtx);
   const serialize = (doc: Node) => ctx.get(serializerCtx)(doc).replace(/\n+$/, "");
   let content = slice.content;
-  while (content.childCount === 1 && !content.firstChild!.isTextblock) content = content.firstChild!.content;
+  while (content.childCount === 1 && !content.firstChild!.isTextblock)
+    content = content.firstChild!.content;
   const block = content.childCount === 1 ? content.firstChild! : null;
   // 한 블록 안의 선택은 인라인 서식만 남긴다. 제목 일부를 복사할 때 "#"이 붙지 않게 한다.
   if (block?.isTextblock) {
     if (block.type.spec.code) return block.textContent;
-    return serialize(schema.topNodeType.create(null, schema.nodes.paragraph!.create(null, block.content)));
+    return serialize(
+      schema.topNodeType.create(null, schema.nodes.paragraph!.create(null, block.content)),
+    );
   }
   const doc = schema.topNodeType.createAndFill(null, slice.content);
   // 빈 문자열이면 ProseMirror가 기본 텍스트 추출로 처리한다.
@@ -267,7 +295,9 @@ const markdownClipboard = $prose(
           const html = data.getData("text/html");
           if (text === "" || (html !== "" && !fromCodeEditor(data, html))) return false;
           const doc = ctx.get(parserCtx)(text);
-          view.dispatch(view.state.tr.replaceSelection(Slice.maxOpen(doc.content)).scrollIntoView());
+          view.dispatch(
+            view.state.tr.replaceSelection(Slice.maxOpen(doc.content)).scrollIntoView(),
+          );
           return true;
         },
       },

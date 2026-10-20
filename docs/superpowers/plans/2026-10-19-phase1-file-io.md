@@ -36,11 +36,13 @@
 ### Task 1: Rust 파일 I/O 커맨드
 
 **Files:**
+
 - Create: `src-tauri/src/fs.rs`
 - Modify: `src-tauri/src/lib.rs` (`greet` 제거, `fs` 모듈 등록)
 - Modify: `src-tauri/Cargo.toml` (`[dev-dependencies] tempfile = "3"`)
 
 **Interfaces:**
+
 - Produces: `#[tauri::command] pub fn read_markdown(path: String) -> Result<String, String>`
 - Produces: `#[tauri::command] pub fn save_markdown_atomic(path: String, content: String) -> Result<(), String>`
 - 에러는 `e.to_string()`으로 변환한 문자열. 프론트엔드는 `invoke` 거부 값으로 받는다.
@@ -110,11 +112,13 @@ git commit -m "feat: 마크다운 읽기 및 원자적 저장 Rust 커맨드 추
 ### Task 2: Vitest 설정 및 Prettier 마크다운 포매터
 
 **Files:**
+
 - Modify: `package.json` (`vitest`, `prettier` 추가, `"test": "vitest run"` 스크립트)
 - Create: `src/lib/format-markdown.ts`
 - Test: `src/lib/format-markdown.test.ts`
 
 **Interfaces:**
+
 - Produces: `export async function formatMarkdown(source: string): Promise<string>`
 
 - [ ] **Step 1: 의존성 설치**
@@ -203,10 +207,12 @@ git commit -m "feat: Prettier standalone 마크다운 포매터 추가"
 ### Task 3: 창 타이틀 문자열 함수
 
 **Files:**
+
 - Create: `src/lib/window-title.ts`
 - Test: `src/lib/window-title.test.ts`
 
 **Interfaces:**
+
 - Produces: `export function windowTitle(filePath: string | null, isDirty: boolean): string`
 
 - [ ] **Step 1: 실패하는 테스트 작성**
@@ -219,8 +225,7 @@ it("untitled clean", () => expect(windowTitle(null, false)).toBe("Untitled"));
 it("untitled dirty", () => expect(windowTitle(null, true)).toBe("• Untitled"));
 it("file clean uses basename", () =>
   expect(windowTitle("/Users/me/notes/todo.md", false)).toBe("todo.md"));
-it("file dirty", () =>
-  expect(windowTitle("/Users/me/notes/todo.md", true)).toBe("• todo.md"));
+it("file dirty", () => expect(windowTitle("/Users/me/notes/todo.md", true)).toBe("• todo.md"));
 ```
 
 - [ ] **Step 2: 테스트 실패 확인**
@@ -249,10 +254,12 @@ git commit -m "feat: 창 타이틀 문자열 생성 함수 추가"
 ### Task 4: 단축키 매칭 함수
 
 **Files:**
+
 - Create: `src/lib/document-shortcuts.ts`
 - Test: `src/lib/document-shortcuts.test.ts`
 
 **Interfaces:**
+
 - Produces: `export type DocumentAction = "new" | "open" | "save" | "saveAs"`
 - Produces: `export function matchShortcut(e: Pick<KeyboardEvent, "metaKey" | "shiftKey" | "key">): DocumentAction | null`
 
@@ -298,11 +305,13 @@ git commit -m "feat: 문서 단축키 매칭 함수 추가"
 ### Task 5: Tauri 래퍼, 권한, textarea 에디터 컴포넌트
 
 **Files:**
+
 - Create: `src/lib/tauri.ts`
 - Create: `src/editor.tsx`
 - Modify: `src-tauri/capabilities/default.json`
 
 **Interfaces:**
+
 - Consumes: Task 1 커맨드 이름 `read_markdown`, `save_markdown_atomic`
 - Produces (`src/lib/tauri.ts`):
   - `export function readMarkdown(path: string): Promise<string>`
@@ -345,12 +354,14 @@ git commit -m "feat: Tauri 래퍼와 textarea 에디터 컴포넌트 추가"
 ### Task 6: 문서 상태와 열기/저장/새 문서 흐름 연결
 
 **Files:**
+
 - Rename: `src/App.tsx` → `src/app.tsx` (`git mv`, 내용 전체 교체)
 - Rename: `src/App.css` → `src/app.css` (`git mv`, 템플릿 스타일 제거, 본문/html 마진 0)
 - Modify: `src/main.tsx` (import 경로 `./app`)
 - Delete: `src/assets/react.svg`, `public/vite.svg`, `public/tauri.svg`
 
 **Interfaces:**
+
 - Consumes: Task 2 `formatMarkdown`, Task 3 `windowTitle`, Task 4 `matchShortcut`, Task 5 전체
 - Produces: 없음 (최상위 컴포넌트)
 
@@ -359,6 +370,7 @@ git commit -m "feat: Tauri 래퍼와 textarea 에디터 컴포넌트 추가"
 상태: `const [filePath, setFilePath] = useState<string | null>(null)`, `const [isDirty, setIsDirty] = useState(false)`, `const editor = useRef<EditorHandle>(null)`.
 
 함수:
+
 - `newDocument()`: `editor.current.setValue("")`, `setFilePath(null)`, `setIsDirty(false)`
 - `openDocument()`: `pickOpenPath()` → `null`이면 반환 → `readMarkdown` → `setValue` → `setFilePath(path)`, `setIsDirty(false)`
 - `saveDocument(path: string)`: `formatMarkdown(getValue())` → `saveMarkdownAtomic(path, formatted)` → 포매팅 결과가 원본과 다르면 `setValue(formatted)` → `setFilePath(path)`, `setIsDirty(false)`
@@ -367,6 +379,7 @@ git commit -m "feat: Tauri 래퍼와 textarea 에디터 컴포넌트 추가"
 - 모든 실패는 `catch`에서 `message(String(err), { kind: "error" })`(dialog 플러그인)로 표시.
 
 이펙트:
+
 - `useEffect(() => { setWindowTitle(windowTitle(filePath, isDirty)) }, [filePath, isDirty])`
 - `useEffect`로 `window.addEventListener("keydown", ...)` 등록. `matchShortcut(e)`가 `null`이 아니면 `e.preventDefault()` 후 해당 함수 호출. 핸들러는 `useRef`에 최신 함수를 담아 리스너를 한 번만 등록한다.
 
@@ -384,6 +397,7 @@ Expected: 에러 없음, 테스트 전부 PASS
 Run: `pnpm tauri dev`
 
 확인 항목:
+
 1. 시작 시 타이틀 `Untitled`.
 2. 타이핑 후 타이틀 `• Untitled`.
 3. `Cmd+S` → 저장 다이얼로그 → 취소 → 타이틀 그대로 `• Untitled`, 본문 유지.
@@ -408,10 +422,12 @@ git commit -m "feat: 문서 열기, 저장, 새 문서 흐름과 단축키 연�
 ### Task 7: 미저장 경고 방어
 
 **Files:**
+
 - Modify: `src/app.tsx`
 - Modify: `docs/PLAN.md` (1단계 체크박스 완료 표시)
 
 **Interfaces:**
+
 - Consumes: Task 5 `confirmDiscard`, `@tauri-apps/api/window`의 `getCurrentWindow().onCloseRequested`
 
 - [ ] **Step 1: 열기와 새 문서에 가드 추가**
@@ -431,6 +447,7 @@ git commit -m "feat: 문서 열기, 저장, 새 문서 흐름과 단축키 연�
 Run: `pnpm tauri dev`
 
 확인 항목:
+
 1. 타이핑 후 `Cmd+N` → 경고 → 취소 → 본문 유지. 다시 `Cmd+N` → 버리기 → 빈 문서.
 2. 타이핑 후 `Cmd+O` → 경고 → 취소 → 열기 다이얼로그 안 뜸.
 3. 타이핑 후 창 닫기(`Cmd+W` 또는 빨간 버튼) → 경고 → 취소 → 창 유지, 본문 유지.

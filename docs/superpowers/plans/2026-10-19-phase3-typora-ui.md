@@ -29,16 +29,18 @@
 - 다른 폴더로 "다른 이름으로 저장": 상대 경로 이미지가 원래 파일을 계속 가리키도록 `../` 경로로 다시 써지고, 다시 열어도 보여야 한다. 절대 경로와 원격 URL은 그대로다. Task 5 테스트 `rewrites relative image src when the document moves to another folder`.
 - 파일명의 `%`, `#`, 공백: 마크다운 URL `chart%231.png`는 `chart#1.png` 파일에, 인코딩되지 않은 `100%.png`는 그대로 연결되어야 한다. 붙여넣거나 드롭한 파일명은 저장 시 안전한 문자로 바꾼다. Task 5 테스트 `image-asset.test.ts`.
 - 같은 이름의 이미지를 두 번 저장: 두 번째는 `-1` 접미사를 받고 첫 파일을 덮어쓰지 않아야 한다. Task 4 테스트 `save_asset_adds_suffix_on_collision`.
-- 언어가 없거나 Prism이 모르는 언어의 코드 블록(```` ``` ````, ```` ```text ````): 강조 없이 정상 편집되고 예외가 없어야 한다. Task 3 테스트 `leaves unknown language code block without tokens`.
+- 언어가 없거나 Prism이 모르는 언어의 코드 블록(` ``` `, ` ```text `): 강조 없이 정상 편집되고 예외가 없어야 한다. Task 3 테스트 `leaves unknown language code block without tokens`.
 
 ---
 
 ### Task 1: 본문 타이포그래피와 다크 모드 스타일
 
 **Files:**
+
 - Modify: `src/app.css` (전체 교체)
 
 **Interfaces:**
+
 - Consumes: Milkdown이 렌더하는 DOM 속성. 작업 목록 `li[data-item-type="task"][data-checked]`, 각주 `sup[data-type="footnote_reference"]`, `dl[data-type="footnote_definition"]`, 코드 블록 `pre[data-language] > code`.
 - Produces: CSS 변수 `--bg`, `--fg`, `--muted`, `--border`, `--code-bg`, `--accent`. Task 3의 토큰 색상이 `--muted`를 쓴다.
 
@@ -85,41 +87,136 @@ body,
   padding: 48px 32px;
   box-sizing: border-box;
   outline: none;
-  font: 16px/1.7 -apple-system, "Apple SD Gothic Neo", system-ui, sans-serif;
+  font:
+    16px/1.7 -apple-system,
+    "Apple SD Gothic Neo",
+    system-ui,
+    sans-serif;
 }
 
-.ProseMirror h1 { font-size: 2em; margin: 1em 0 0.5em; line-height: 1.3; }
-.ProseMirror h2 { font-size: 1.5em; margin: 1em 0 0.5em; line-height: 1.3; }
-.ProseMirror h3 { font-size: 1.25em; margin: 1em 0 0.5em; }
-.ProseMirror h4, .ProseMirror h5, .ProseMirror h6 { font-size: 1em; margin: 1em 0 0.5em; }
-.ProseMirror p { margin: 0 0 1em; }
-.ProseMirror a { color: var(--accent); }
-.ProseMirror blockquote { margin: 0 0 1em; padding: 0 1em; border-left: 4px solid var(--border); color: var(--muted); }
-.ProseMirror hr { border: 0; border-top: 1px solid var(--border); margin: 1.5em 0; }
+.ProseMirror h1 {
+  font-size: 2em;
+  margin: 1em 0 0.5em;
+  line-height: 1.3;
+}
+.ProseMirror h2 {
+  font-size: 1.5em;
+  margin: 1em 0 0.5em;
+  line-height: 1.3;
+}
+.ProseMirror h3 {
+  font-size: 1.25em;
+  margin: 1em 0 0.5em;
+}
+.ProseMirror h4,
+.ProseMirror h5,
+.ProseMirror h6 {
+  font-size: 1em;
+  margin: 1em 0 0.5em;
+}
+.ProseMirror p {
+  margin: 0 0 1em;
+}
+.ProseMirror a {
+  color: var(--accent);
+}
+.ProseMirror blockquote {
+  margin: 0 0 1em;
+  padding: 0 1em;
+  border-left: 4px solid var(--border);
+  color: var(--muted);
+}
+.ProseMirror hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 1.5em 0;
+}
 
-.ProseMirror code { font: 0.9em/1.5 ui-monospace, Menlo, monospace; background: var(--code-bg); padding: 0.15em 0.35em; border-radius: 4px; }
-.ProseMirror pre { background: var(--code-bg); padding: 12px 16px; border-radius: 6px; overflow-x: auto; margin: 0 0 1em; }
-.ProseMirror pre code { background: none; padding: 0; }
+.ProseMirror code {
+  font:
+    0.9em/1.5 ui-monospace,
+    Menlo,
+    monospace;
+  background: var(--code-bg);
+  padding: 0.15em 0.35em;
+  border-radius: 4px;
+}
+.ProseMirror pre {
+  background: var(--code-bg);
+  padding: 12px 16px;
+  border-radius: 6px;
+  overflow-x: auto;
+  margin: 0 0 1em;
+}
+.ProseMirror pre code {
+  background: none;
+  padding: 0;
+}
 
-.ProseMirror ul, .ProseMirror ol { padding-left: 1.6em; margin: 0 0 1em; }
-.ProseMirror li > p { margin: 0; }
-.ProseMirror li > ul, .ProseMirror li > ol { margin: 0; }
+.ProseMirror ul,
+.ProseMirror ol {
+  padding-left: 1.6em;
+  margin: 0 0 1em;
+}
+.ProseMirror li > p {
+  margin: 0;
+}
+.ProseMirror li > ul,
+.ProseMirror li > ol {
+  margin: 0;
+}
 
-.ProseMirror table { border-collapse: collapse; margin: 0 0 1em; }
-.ProseMirror th, .ProseMirror td { border: 1px solid var(--border); padding: 6px 12px; }
-.ProseMirror th { background: var(--code-bg); }
+.ProseMirror table {
+  border-collapse: collapse;
+  margin: 0 0 1em;
+}
+.ProseMirror th,
+.ProseMirror td {
+  border: 1px solid var(--border);
+  padding: 6px 12px;
+}
+.ProseMirror th {
+  background: var(--code-bg);
+}
 
-.ProseMirror img { max-width: 100%; }
-.ProseMirror img.ProseMirror-selectednode { outline: 2px solid var(--accent); }
+.ProseMirror img {
+  max-width: 100%;
+}
+.ProseMirror img.ProseMirror-selectednode {
+  outline: 2px solid var(--accent);
+}
 
 /* 작업 목록. 체크박스는 Task 2의 클릭 플러그인이 li 자체를 클릭 대상으로 삼으므로 ::before로만 그린다. */
-.ProseMirror li[data-item-type="task"] { list-style: none; position: relative; }
-.ProseMirror li[data-item-type="task"]::before { content: "☐"; position: absolute; left: -1.6em; top: 0; cursor: pointer; user-select: none; }
-.ProseMirror li[data-item-type="task"][data-checked="true"]::before { content: "☑"; }
-.ProseMirror li[data-item-type="task"][data-checked="true"] > p { color: var(--muted); text-decoration: line-through; }
+.ProseMirror li[data-item-type="task"] {
+  list-style: none;
+  position: relative;
+}
+.ProseMirror li[data-item-type="task"]::before {
+  content: "☐";
+  position: absolute;
+  left: -1.6em;
+  top: 0;
+  cursor: pointer;
+  user-select: none;
+}
+.ProseMirror li[data-item-type="task"][data-checked="true"]::before {
+  content: "☑";
+}
+.ProseMirror li[data-item-type="task"][data-checked="true"] > p {
+  color: var(--muted);
+  text-decoration: line-through;
+}
 
-.ProseMirror sup[data-type="footnote_reference"] { color: var(--accent); }
-.ProseMirror dl[data-type="footnote_definition"] { margin: 1em 0; padding-top: 0.5em; border-top: 1px solid var(--border); font-size: 0.9em; color: var(--muted); }
+.ProseMirror sup[data-type="footnote_reference"] {
+  color: var(--accent);
+}
+.ProseMirror dl[data-type="footnote_definition"] {
+  margin: 1em 0;
+  padding-top: 0.5em;
+  border-top: 1px solid var(--border);
+  font-size: 0.9em;
+  color: var(--muted);
+}
 ```
 
 - [ ] **Step 2: 타입 체크와 빌드**
@@ -149,10 +246,12 @@ git commit -m "feat(editor): 본문 타이포그래피와 다크 모드 스타�
 ### Task 2: 작업 목록 체크박스 클릭 토글
 
 **Files:**
+
 - Modify: `src/markdown-editor.ts` (`toggleTaskItem` 추가, `taskToggle` 플러그인 등록)
 - Modify: `src/markdown-editor.test.ts` (`setup`이 `editor`도 반환, 테스트 2개 추가)
 
 **Interfaces:**
+
 - Consumes: gfm 프리셋의 `list_item` 노드. `attrs.checked`는 작업 목록이면 `boolean`, 일반 항목이면 `null`. DOM은 `li[data-item-type="task"]`.
 - Produces: `export function toggleTaskItem(view: EditorView, pos: number): boolean`. `pos`는 `list_item` 노드의 위치. 토글했으면 `true`.
 
@@ -161,7 +260,7 @@ git commit -m "feat(editor): 본문 타이포그래피와 다크 모드 스타�
 `src/markdown-editor.test.ts`의 `setup` 반환값에 `editor`를 추가한다.
 
 ```ts
-  return { handle: editorHandle(editor), type, runUndo, editor };
+return { handle: editorHandle(editor), type, runUndo, editor };
 ```
 
 import에 `toggleTaskItem`을 추가하고 파일 끝에 테스트를 붙인다.
@@ -256,12 +355,14 @@ git commit -m "feat(editor): 작업 목록 체크박스 클릭 토글 추가"
 ### Task 3: 코드 블록 구문 강조
 
 **Files:**
+
 - Modify: `package.json`, `pnpm-lock.yaml` (`@milkdown/plugin-prism` 추가)
 - Modify: `src/markdown-editor.ts` (`.use(prism)`)
 - Modify: `src/app.css` (토큰 색상)
 - Modify: `src/markdown-editor.test.ts` (테스트 2개 추가)
 
 **Interfaces:**
+
 - Consumes: 2단계 `codeBlockWithMeta`의 `attrs.language`. Prism 플러그인은 `code_block` 노드의 `language`로 refractor 언어를 고른다.
 - Produces: `pre code` 안 `span.token.<종류>` 인라인 데코레이션. DOM만 바뀌고 모델과 마크다운은 그대로다.
 
@@ -274,7 +375,7 @@ Expected: `@milkdown/plugin-prism 7.22.3`과 `refractor 5.x`가 설치된다. `@
 
 `src/markdown-editor.test.ts` 끝에 추가한다. `root`는 이미 파일 상단에서 `let root: HTMLElement | null`로 선언되어 있다.
 
-```ts
+````ts
 it("highlights code block tokens", async () => {
   const { handle } = await setup();
   handle.setValue("```ts\nconst x = 1;\n```\n");
@@ -289,7 +390,7 @@ it("leaves unknown language code block without tokens", async () => {
   type("a");
   expect(handle.getValue()).toBe("```text\naconst x = 1;\n```\n");
 });
-```
+````
 
 - [ ] **Step 3: 테스트 실패 확인**
 
@@ -311,19 +412,68 @@ import { prism } from "@milkdown/plugin-prism";
 `src/app.css` 끝에 추가한다. refractor 5는 테마 CSS를 배포하지 않으므로 직접 쓴다.
 
 ```css
-.token.comment, .token.prolog, .token.cdata { color: #6a737d; }
-.token.keyword, .token.tag, .token.important, .token.selector { color: #d73a49; }
-.token.string, .token.attr-value, .token.char, .token.regex { color: #032f62; }
-.token.number, .token.boolean, .token.constant, .token.symbol { color: #005cc5; }
-.token.function, .token.class-name, .token.attr-name { color: #6f42c1; }
-.token.operator, .token.punctuation { color: var(--muted); }
+.token.comment,
+.token.prolog,
+.token.cdata {
+  color: #6a737d;
+}
+.token.keyword,
+.token.tag,
+.token.important,
+.token.selector {
+  color: #d73a49;
+}
+.token.string,
+.token.attr-value,
+.token.char,
+.token.regex {
+  color: #032f62;
+}
+.token.number,
+.token.boolean,
+.token.constant,
+.token.symbol {
+  color: #005cc5;
+}
+.token.function,
+.token.class-name,
+.token.attr-name {
+  color: #6f42c1;
+}
+.token.operator,
+.token.punctuation {
+  color: var(--muted);
+}
 
 @media (prefers-color-scheme: dark) {
-  .token.comment, .token.prolog, .token.cdata { color: #8b949e; }
-  .token.keyword, .token.tag, .token.important, .token.selector { color: #ff7b72; }
-  .token.string, .token.attr-value, .token.char, .token.regex { color: #a5d6ff; }
-  .token.number, .token.boolean, .token.constant, .token.symbol { color: #79c0ff; }
-  .token.function, .token.class-name, .token.attr-name { color: #d2a8ff; }
+  .token.comment,
+  .token.prolog,
+  .token.cdata {
+    color: #8b949e;
+  }
+  .token.keyword,
+  .token.tag,
+  .token.important,
+  .token.selector {
+    color: #ff7b72;
+  }
+  .token.string,
+  .token.attr-value,
+  .token.char,
+  .token.regex {
+    color: #a5d6ff;
+  }
+  .token.number,
+  .token.boolean,
+  .token.constant,
+  .token.symbol {
+    color: #79c0ff;
+  }
+  .token.function,
+  .token.class-name,
+  .token.attr-name {
+    color: #d2a8ff;
+  }
 }
 ```
 
@@ -336,9 +486,9 @@ Expected: 전체 PASS.
 
 Run: `pnpm tauri dev`
 
-1. ```` ```ts ```` 입력 후 Enter → 코드 블록. `const x = 1;` 입력 → `const`가 키워드 색.
+1. ` ```ts ` 입력 후 Enter → 코드 블록. `const x = 1;` 입력 → `const`가 키워드 색.
 2. 코드 블록 안에서 `// 한글 주석` 입력 → 자소 분리 없음, 주석 색.
-3. 2단계 테스트 파일(```` ```js title=example {1,3} ````)을 열고 저장 → meta가 유지된다(`git diff` 없음).
+3. 2단계 테스트 파일(` ```js title=example {1,3} `)을 열고 저장 → meta가 유지된다(`git diff` 없음).
 4. 다크 모드 전환 → 토큰 색이 바뀐다.
 
 - [ ] **Step 8: Commit**
@@ -353,12 +503,14 @@ git commit -m "feat(editor): Prism 코드 블록 구문 강조 추가"
 ### Task 4: 이미지 에셋 저장 커맨드와 asset 프로토콜 설정
 
 **Files:**
+
 - Modify: `src-tauri/src/fs.rs` (`save_asset` 추가, 테스트 3개)
 - Modify: `src-tauri/src/lib.rs` (`generate_handler!`에 `fs::save_asset` 등록)
 - Modify: `src-tauri/tauri.conf.json` (`assetProtocol`, `dragDropEnabled`)
 - Modify: `src/lib/tauri.ts` (`saveAsset`, `assetUrl`)
 
 **Interfaces:**
+
 - Produces (Rust): `save_asset(dir: String, file_name: String, data: Vec<u8>) -> Result<String, String>`. `<dir>/assets/`를 만들고 `file_name`으로 쓴다. 같은 이름이 있으면 `<stem>-1.<ext>`, `<stem>-2.<ext>` 순으로 피한다. 반환값은 문서 폴더 기준 상대 경로 `assets/<실제 파일명>`.
 - Produces (TS, `src/lib/tauri.ts`):
   - `export function saveAsset(dir: string, fileName: string, data: number[]): Promise<string>`
@@ -505,6 +657,7 @@ git commit -m "feat(fs): 이미지 에셋 저장 커맨드와 asset 프로토콜
 ### Task 5: 로컬 이미지 렌더링과 붙여넣기 저장
 
 **Files:**
+
 - Create: `src/lib/image-asset.ts`
 - Create: `src/lib/image-asset.test.ts`
 - Modify: `src/markdown-editor.ts` (`documentPath` ctx, `imageSrc` 데코레이션 플러그인, `upload` 설정, `setFilePath`)
@@ -513,6 +666,7 @@ git commit -m "feat(fs): 이미지 에셋 저장 커맨드와 asset 프로토콜
 - Modify: `src/app.tsx` (`newDocument`, `openDocument`, `saveDocument`에서 `setFilePath` 호출)
 
 **Interfaces:**
+
 - Consumes: Task 4 `saveAsset`, `assetUrl`, 기존 `showError` (`src/lib/tauri.ts`). commonmark `image` 노드(`attrs: { src, alt, title }`, inline atom, `nodeSize` 1). `@milkdown/kit/plugin/upload`의 `upload`, `uploadConfig` (`uploader(files: FileList, schema: Schema, ctx: Ctx, insertPos: number): Promise<Node[]>`).
 - Produces (`src/lib/image-asset.ts`):
   - `export function imageFilePath(src: string, documentPath: string | null): string | null`. 마크다운 URL을 `decodeURIComponent`로 풀고(실패하면 원문 그대로) 상대 경로를 문서 폴더 기준 절대 경로로 바꾼다. 스킴이 있는 URL(`https:`, `data:`), 빈 문자열, 문서 경로가 없는 상대 경로는 `null`.
@@ -692,11 +846,15 @@ it("rewrites relative image src when the document moves to another folder", asyn
   handle.setFilePath("/a/n.md");
   handle.setValue("![pic](assets/p.png) ![abs](/x/q.png) ![web](https://example.com/r.png)\n");
   handle.setFilePath("/b/n.md");
-  expect(handle.getValue()).toBe("![pic](../a/assets/p.png) ![abs](/x/q.png) ![web](https://example.com/r.png)\n");
+  expect(handle.getValue()).toBe(
+    "![pic](../a/assets/p.png) ![abs](/x/q.png) ![web](https://example.com/r.png)\n",
+  );
   expect(imageSrc()).toBe("asset://localhost/a/assets/p.png");
   expect(onChange).toHaveBeenCalledTimes(1);
   handle.setFilePath("/a/n.md");
-  expect(handle.getValue()).toBe("![pic](assets/p.png) ![abs](/x/q.png) ![web](https://example.com/r.png)\n");
+  expect(handle.getValue()).toBe(
+    "![pic](assets/p.png) ![abs](/x/q.png) ![web](https://example.com/r.png)\n",
+  );
 });
 
 it("does not rewrite image src on the first save of an untitled document", async () => {
@@ -729,7 +887,11 @@ it("pasting an image saves it under assets and returns a relative image node", a
   handle.setFilePath("/docs/n.md");
   const file = new File([new Uint8Array([1, 2, 3])], "image.png", { type: "image/png" });
   const nodes = await runUploader(editor, [file]);
-  expect(saveAsset).toHaveBeenCalledWith("/docs", expect.stringMatching(/^image-\d{8}-\d{6}\.png$/), [1, 2, 3]);
+  expect(saveAsset).toHaveBeenCalledWith(
+    "/docs",
+    expect.stringMatching(/^image-\d{8}-\d{6}\.png$/),
+    [1, 2, 3],
+  );
   expect(nodes).toHaveLength(1);
   expect((nodes as Node[])[0]!.attrs.src).toMatch(/^assets\/image-\d{8}-\d{6}\.png$/);
 });
@@ -763,7 +925,13 @@ export interface EditorHandle {
 import 추가:
 
 ```ts
-import { Editor, editorViewCtx, remarkStringifyOptionsCtx, rootCtx, schemaCtx } from "@milkdown/kit/core";
+import {
+  Editor,
+  editorViewCtx,
+  remarkStringifyOptionsCtx,
+  rootCtx,
+  schemaCtx,
+} from "@milkdown/kit/core";
 import type { Ctx } from "@milkdown/kit/ctx";
 import { upload, uploadConfig } from "@milkdown/kit/plugin/upload";
 import type { Node } from "@milkdown/kit/prose/model";
@@ -791,7 +959,11 @@ const imageSrc = $prose((ctx) => {
       if (node.type.name !== "image") return;
       const file = imageFilePath(node.attrs.src, ctx.get(documentPath.key));
       // 항상 src를 넣는다. 데코레이션이 사라지면 ProseMirror가 속성을 지워 img가 빈 src로 남는다.
-      decorations.push(Decoration.node(pos, pos + node.nodeSize, { src: file === null ? node.attrs.src : assetUrl(file) }));
+      decorations.push(
+        Decoration.node(pos, pos + node.nodeSize, {
+          src: file === null ? node.attrs.src : assetUrl(file),
+        }),
+      );
     });
     return DecorationSet.create(doc, decorations);
   };
@@ -799,7 +971,8 @@ const imageSrc = $prose((ctx) => {
     key: IMAGE_SRC_KEY,
     state: {
       init: (_, state) => build(state.doc),
-      apply: (tr, set, _, state) => (tr.docChanged || tr.getMeta(IMAGE_SRC_KEY) ? build(state.doc) : set),
+      apply: (tr, set, _, state) =>
+        tr.docChanged || tr.getMeta(IMAGE_SRC_KEY) ? build(state.doc) : set,
     },
     props: { decorations: (state) => IMAGE_SRC_KEY.getState(state) },
   });
@@ -821,7 +994,11 @@ async function uploadImages(files: FileList, ctx: Ctx): Promise<Node[]> {
     if (!file.type.startsWith("image/")) continue;
     try {
       const data = Array.from(new Uint8Array(await file.arrayBuffer()));
-      const src = await saveAsset(dirOf(path), assetFileName(file.name, file.type, new Date()), data);
+      const src = await saveAsset(
+        dirOf(path),
+        assetFileName(file.name, file.type, new Date()),
+        data,
+      );
       nodes.push(image.create({ src, alt: src.slice("assets/".length).replace(/\.[^.]*$/, "") }));
     } catch (err) {
       await showError(String(err));
@@ -834,10 +1011,10 @@ async function uploadImages(files: FileList, ctx: Ctx): Promise<Node[]> {
 `createMarkdownEditor`의 `.config`에 추가:
 
 ```ts
-      ctx.update(uploadConfig.key, (prev) => ({
-        ...prev,
-        uploader: (files, _schema, ctx) => uploadImages(files, ctx),
-      }));
+ctx.update(uploadConfig.key, (prev) => ({
+  ...prev,
+  uploader: (files, _schema, ctx) => uploadImages(files, ctx),
+}));
 ```
 
 체인에 `.use(documentPath)`, `.use(imageSrc)`, `.use(upload)`를 추가한다. 순서: `commonmark`, `codeBlockWithMeta`, `gfm`, `taskToggle`, `history`, `prism`, `upload`, `documentPath`, `imageSrc`, `docChanged`.
@@ -872,24 +1049,24 @@ async function uploadImages(files: FileList, ctx: Ctx): Promise<Node[]> {
 `saveDocument`: 경로를 먼저 알려서 상대 경로 이미지를 다시 쓴 뒤 본문을 꺼낸다. 쓰기에 실패하면 이전 경로로 되돌린다.
 
 ```ts
-  function saveDocument(path: string) {
-    return run(async () => {
-      const h = editor.current;
-      if (!h) return;
-      // 다른 폴더면 상대 경로 이미지를 새 위치 기준으로 다시 쓴다. getValue보다 먼저 불러야 한다.
-      h.setFilePath(path);
-      const source = h.getValue();
-      try {
-        await saveMarkdownAtomic(path, formatMarkdown(source));
-      } catch (err) {
-        h.setFilePath(filePath);
-        throw err;
-      }
-      setFilePath(path);
-      if (h.getValue() !== source) return;
-      setIsDirty(false);
-    });
-  }
+function saveDocument(path: string) {
+  return run(async () => {
+    const h = editor.current;
+    if (!h) return;
+    // 다른 폴더면 상대 경로 이미지를 새 위치 기준으로 다시 쓴다. getValue보다 먼저 불러야 한다.
+    h.setFilePath(path);
+    const source = h.getValue();
+    try {
+      await saveMarkdownAtomic(path, formatMarkdown(source));
+    } catch (err) {
+      h.setFilePath(filePath);
+      throw err;
+    }
+    setFilePath(path);
+    if (h.getValue() !== source) return;
+    setIsDirty(false);
+  });
+}
 ```
 
 `setFilePath`가 이미지를 다시 쓰면 `onChange`로 `isDirty`가 켜지지만, 바로 뒤의 `getValue()`가 그 결과를 `source`로 잡으므로 저장 후 `setIsDirty(false)`까지 정상 도달한다.
@@ -925,10 +1102,12 @@ git commit -m "feat(editor): 로컬 이미지 렌더링과 붙여넣기 저장 �
 ### Task 6: GFM 수동 검증과 문서 갱신
 
 **Files:**
+
 - Modify: `docs/PLAN.md` (3단계 체크박스, 상세 태스크 링크, 기술 스택 표 스타일링 행, 2단계 알려진 문제의 체크 상태 항목)
 - Modify: `AGENTS.md` (`EditorHandle` 설명에 `setFilePath` 반영)
 
 **Interfaces:**
+
 - Consumes: Task 1~5 결과물 전체
 
 - [ ] **Step 1: GFM 수동 검증**
@@ -940,9 +1119,9 @@ Run: `pnpm tauri dev`
 ```markdown
 # GFM
 
-| 이름 | 값 |
-| --- | --- |
-| a | 1 |
+| 이름 | 값  |
+| ---- | --- |
+| a    | 1   |
 
 - [x] 끝난 일
 - [ ] 남은 일
@@ -953,6 +1132,7 @@ Run: `pnpm tauri dev`
 ```
 
 확인 항목:
+
 1. 표가 테두리와 함께 보이고 셀 안에서 한글 입력이 된다. Tab으로 다음 셀, Shift+Tab으로 이전 셀. 마지막 셀에서 Tab → 새 행.
 2. `끝난 일`은 `☑`와 취소선, `남은 일`은 `☐`. 클릭으로 토글.
 3. `~~취소~~`가 취소선. 각주 참조가 위첨자, 정의가 본문 아래 구분선 밑에 보인다.

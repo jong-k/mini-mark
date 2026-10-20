@@ -114,7 +114,11 @@ export default function App() {
       // 다른 경로로 저장하면 네이티브 대화상자가 이미 덮어쓰기를 물었다.
       if (
         path === filePath &&
-        !(await canOverwrite({ known: knownMtime, modifiedAt: () => statOrNull(path), confirmOverwrite }))
+        !(await canOverwrite({
+          known: knownMtime,
+          modifiedAt: () => statOrNull(path),
+          confirmOverwrite,
+        }))
       ) {
         return;
       }
@@ -166,7 +170,9 @@ export default function App() {
       // 실패를 소비하지 않으면 2초마다 같은 오류가 뜬다. 한 번 보이고 다음 외부 변경에서 다시 시도한다.
       await showError(String(err));
       const current = await statOrNull(filePath);
-      return current === null ? { type: "none" as const } : { type: "keep" as const, known: current };
+      return current === null
+        ? { type: "none" as const }
+        : { type: "keep" as const, known: current };
     });
     if (result.type === "none") return;
     update({ knownMtime: result.known });
@@ -189,7 +195,9 @@ export default function App() {
     // 단축키는 File 메뉴 accelerator가 받아 이 이벤트로 온다.
     const acting = onDocumentAction((a) => void queue.enqueue(() => actions[a]()));
     // ponytail: 버리기/취소 2버튼. 저장/버리기/취소 3버튼이 필요하면 커스텀 모달로 교체.
-    const closing = onWindowCloseRequested(async () => !doc.current.isDirty || (await confirmDiscard()));
+    const closing = onWindowCloseRequested(
+      async () => !doc.current.isDirty || (await confirmDiscard()),
+    );
     // 틱은 큐가 비었을 때만 들어간다. 문서 동작 중에는 건너뛰고, 틱 중 들어온 사용자 요청은 큐에서 기다린다.
     const interval = setInterval(() => {
       if (queue.idle()) void queue.enqueue(tick);

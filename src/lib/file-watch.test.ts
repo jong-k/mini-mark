@@ -33,12 +33,18 @@ function deps(over: Partial<FileWatchDeps>): FileWatchDeps {
 }
 
 it("reloads with the new baseline when clean", async () => {
-  await expect(pollFileChange(deps({}))).resolves.toEqual({ type: "reload", known: 20, content: "new" });
+  await expect(pollFileChange(deps({}))).resolves.toEqual({
+    type: "reload",
+    known: 20,
+    content: "new",
+  });
 });
 
 it("keeps the edit and advances the baseline when the user declines", async () => {
   const read = vi.fn(async () => "new");
-  const result = await pollFileChange(deps({ isDirty: () => true, confirmReload: async () => false, read }));
+  const result = await pollFileChange(
+    deps({ isDirty: () => true, confirmReload: async () => false, read }),
+  );
   expect(result).toEqual({ type: "keep", known: 20 });
   expect(read).not.toHaveBeenCalled();
 });
@@ -49,7 +55,9 @@ it("discards the read when the document changed meanwhile", async () => {
     path = "/b.md"; // 읽는 동안 다른 문서가 열렸다
     return "a-content";
   };
-  await expect(pollFileChange(deps({ currentPath: () => path, read }))).resolves.toEqual({ type: "none" });
+  await expect(pollFileChange(deps({ currentPath: () => path, read }))).resolves.toEqual({
+    type: "none",
+  });
 });
 
 it("discards the read when the user typed meanwhile", async () => {
@@ -58,7 +66,9 @@ it("discards the read when the user typed meanwhile", async () => {
     count++;
     return "new";
   };
-  await expect(pollFileChange(deps({ changeCount: () => count, read }))).resolves.toEqual({ type: "none" });
+  await expect(pollFileChange(deps({ changeCount: () => count, read }))).resolves.toEqual({
+    type: "none",
+  });
 });
 
 it("discards the read when the user typed after confirming the reload", async () => {

@@ -24,7 +24,7 @@ Spec: 이 계획 자체가 스펙이다(2026-10-20 대화에서 Oxlint + oxfmt �
 - `editor.tsx`의 ref 동기화를 `useLayoutEffect`로 옮긴 뒤에도 입력 즉시 창 제목에 수정 표시가 붙어야 한다(`pnpm tauri dev`에서 타이핑으로 확인).
 - 일괄 포맷 뒤에도 동작이 같아야 한다. `pnpm build`(tsc 포함)와 `pnpm test`가 포맷 전과 같이 통과해야 한다.
 - `pnpm fmt`가 gitignore 대상(`dist`, `src-tauri/gen/schemas`, `src-tauri/target`)과 `pnpm-lock.yaml`을 건드리지 않아야 한다. 포맷 후 `git status`로 확인한다.
-- Markdown 포맷이 렌더 결과를 바꾸면 안 된다. 인라인 코드 안 백틱(phase3 계획서 32행의 ```` ``` ```` 가 ` ``` ` 로 바뀜)과 표가 포맷 전과 같게 보이는지 diff로 확인한다.
+- Markdown 포맷이 렌더 결과를 바꾸면 안 된다. 인라인 코드 안 백틱(phase3 계획서 32행의 ` ``` ` 가 ` ``` ` 로 바뀜)과 표가 포맷 전과 같게 보이는지 diff로 확인한다.
 - `app.tsx` 마운트 이펙트는 의존성을 비운 채 유지해야 한다. 의존성을 채우면 매 렌더마다 리스너가 재등록된다. 린트 경고는 주석으로만 끈다.
 - type-aware 규칙이 실제로 돈다. floating promise를 일부러 넣으면 `pnpm lint`가 실패해야 한다(Task 1 Step 4).
 
@@ -33,6 +33,7 @@ Spec: 이 계획 자체가 스펙이다(2026-10-20 대화에서 Oxlint + oxfmt �
 ### Task 1: Oxlint 도입과 기존 경고 해소
 
 Files:
+
 - Create: `.oxlintrc.json`
 - Modify: `package.json` (devDependencies, scripts)
 - Modify: `src/editor.tsx:27-32` (ref 동기화), `src/editor.tsx:51` (deps 배열)
@@ -40,6 +41,7 @@ Files:
 - Modify: `.vscode/extensions.json`
 
 Interfaces:
+
 - Produces: `pnpm lint` 스크립트 (`oxlint --deny-warnings`)
 
 - [ ] Step 1: 설치
@@ -79,6 +81,7 @@ Expected: `typescript(no-floating-promises)` error로 실패. 확인 후 파일 
 - [ ] Step 5: 경고 해소
 
 `pnpm lint` 실행 시 남는 경고 4건을 아래처럼 처리한다.
+
 - `src/editor.tsx` `react(refs)` 2건: 렌더 중 `onChangeRef.current = onChange; onReadyRef.current = onReady;` 대입을 인자 없는 `useLayoutEffect(() => { ... })` 안으로 옮긴다. 기존 주석(매 렌더 새 onChange 이유)은 유지한다. `useRef` 초기값이 첫 렌더를 덮으므로 동작이 같다.
 - `src/editor.tsx` `exhaustive-deps`(`handleRef`): 51행 deps 배열을 `[handleRef]`로 바꾼다. `app.tsx`의 `useRef` 객체라 참조가 바뀌지 않아 재실행되지 않는다.
 - `src/app.tsx` `exhaustive-deps`: 경고가 가리키는 줄 바로 위에 `// oxlint-disable-next-line react-hooks/exhaustive-deps -- 마운트 시 한 번만 등록한다. 핸들러는 doc ref로 최신값을 읽는다.` 를 넣는다. deps는 비운 채 둔다.
@@ -101,11 +104,13 @@ git commit -m "chore(lint): Oxlint 도입, 기존 경고 해소"
 ### Task 2: oxfmt 도입과 일괄 포맷
 
 Files:
+
 - Create: `.oxfmtrc.json`
 - Modify: `package.json` (devDependencies, scripts)
 - Modify: oxfmt가 바꾸는 파일 전부(코드 13개: `src/**`, `package.json`, `src-tauri/*.json`, `src-tauri/capabilities/*.json`, 문서 9개: `docs/**/*.md`)
 
 Interfaces:
+
 - Consumes: Task 1의 `pnpm lint`
 - Produces: `pnpm fmt`, `pnpm fmt:check`
 
@@ -151,6 +156,7 @@ git commit -m "style: oxfmt 일괄 포맷"
 ### Task 3: Rust 스크립트와 AGENTS.md 갱신
 
 Files:
+
 - Modify: `package.json` (scripts)
 - Modify: `AGENTS.md`
 

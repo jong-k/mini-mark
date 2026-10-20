@@ -33,7 +33,9 @@ it("opens a clean document with the mtime taken before the read", async () => {
 
 it("cancels when dirty and the user keeps the changes", async () => {
   const read = vi.fn(async () => "content");
-  const result = await readDocument(deps({ isDirty: () => true, confirmDiscard: async () => false, read }));
+  const result = await readDocument(
+    deps({ isDirty: () => true, confirmDiscard: async () => false, read }),
+  );
   expect(result).toEqual({ type: "cancel" });
   expect(read).not.toHaveBeenCalled();
 });
@@ -85,6 +87,10 @@ it.each([
   ["changed and confirmed", 10, 20, true, true],
 ])("canOverwrite: %s", async (_name, known, current, answer, expected) => {
   const confirmOverwrite = vi.fn(async () => answer);
-  await expect(canOverwrite({ known, modifiedAt: async () => current, confirmOverwrite })).resolves.toBe(expected);
-  expect(confirmOverwrite).toHaveBeenCalledTimes(known !== null && current !== null && current !== known ? 1 : 0);
+  await expect(
+    canOverwrite({ known, modifiedAt: async () => current, confirmOverwrite }),
+  ).resolves.toBe(expected);
+  expect(confirmOverwrite).toHaveBeenCalledTimes(
+    known !== null && current !== null && current !== known ? 1 : 0,
+  );
 });

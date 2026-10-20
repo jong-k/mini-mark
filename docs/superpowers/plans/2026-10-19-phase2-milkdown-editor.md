@@ -34,12 +34,14 @@
 ### Task 1: Prettier 제거와 동기 포매터
 
 **Files:**
+
 - Modify: `src/lib/format-markdown.ts`
 - Modify: `src/lib/format-markdown.test.ts` (전체 교체)
 - Modify: `src/app.tsx` (`saveDocument` 안의 `await formatMarkdown(source)` → `formatMarkdown(source)`)
 - Modify: `package.json`, `pnpm-lock.yaml` (`prettier` 제거)
 
 **Interfaces:**
+
 - Produces: `export function formatMarkdown(source: string): string` (동기)
 
 - [ ] **Step 1: 실패하는 테스트 작성**
@@ -90,6 +92,7 @@ git commit -m "feat(format): Prettier 제거하고 LF 정규화와 끝 개행만
 ### Task 2: Milkdown 에디터 팩토리와 컴포넌트 교체
 
 **Files:**
+
 - Create: `src/markdown-editor.ts`
 - Create: `src/markdown-editor.test.ts`
 - Modify: `src/editor.tsx` (textarea 구현 전체 교체, `EditorHandle` 인터페이스는 유지)
@@ -97,6 +100,7 @@ git commit -m "feat(format): Prettier 제거하고 LF 정규화와 끝 개행만
 - Modify: `package.json`, `pnpm-lock.yaml` (`@milkdown/kit` 추가, `jsdom` dev 추가)
 
 **Interfaces:**
+
 - Consumes: `src/editor.tsx`의 `EditorHandle` (타입 import), Task 1 `formatMarkdown`
 - Produces (`src/markdown-editor.ts`):
   - `export function createMarkdownEditor(root: HTMLElement, onChange: () => void): Promise<Editor>` (`Editor`는 `@milkdown/kit/core`의 Milkdown 에디터)
@@ -111,7 +115,7 @@ Run: `pnpm add @milkdown/kit && pnpm add -D jsdom`
 
 `src/markdown-editor.test.ts`. listener가 200ms 디바운스라 실시간 타이머로 300ms 기다린다.
 
-```ts
+````ts
 // @vitest-environment jsdom
 import { editorViewCtx } from "@milkdown/kit/core";
 import { afterEach, expect, it, vi } from "vitest";
@@ -207,7 +211,7 @@ it("setValue with empty string clears the document", async () => {
   handle.setValue("");
   expect(handle.getValue()).toBe("");
 });
-```
+````
 
 - [ ] **Step 3: 테스트 실패 확인**
 
@@ -229,12 +233,13 @@ Editor.make()
   .use(gfm)
   .use(history)
   .use(listener)
-  .create()
+  .create();
 ```
 
 import 경로: `Editor, rootCtx, remarkStringifyOptionsCtx, editorViewCtx` ← `@milkdown/kit/core`, `commonmark` ← `@milkdown/kit/preset/commonmark`, `gfm` ← `@milkdown/kit/preset/gfm`, `history` ← `@milkdown/kit/plugin/history`, `listener, listenerCtx` ← `@milkdown/kit/plugin/listener`, `getMarkdown, replaceAll` ← `@milkdown/kit/utils`.
 
 `editorHandle(editor)`:
+
 - `getValue`: `editor.action(getMarkdown())`
 - `setValue`: `editor.action(replaceAll(value, true))`. `flush = true`가 필수다. `false`면 교체가 히스토리에 쌓여 `Cmd+Z`로 이전 파일이 되살아나고, listener `apply`를 거쳐 `onChange`가 발생한다.
 
@@ -293,7 +298,9 @@ Milkdown은 CSS를 포함하지 않는다. `prosemirror-view/style/prosemirror.c
   min-height: 100vh;
   padding: 16px;
   box-sizing: border-box;
-  font: 16px/1.6 system-ui, sans-serif;
+  font:
+    16px/1.6 system-ui,
+    sans-serif;
 }
 ```
 
@@ -307,6 +314,7 @@ Expected: 에러 없음, 전체 PASS (`markdown-editor.test.ts` 5개 포함)
 Run: `pnpm tauri dev`
 
 확인 항목:
+
 1. 앱이 뜨자마자 `Cmd+O` → 아무 일도 없거나 다이얼로그가 뜬다. 에러 다이얼로그는 안 뜬다.
 2. 타이핑 → 타이틀 `• Untitled`. 이후 타이핑은 타이틀 변화 없음.
 3. `* a` 입력 → 리스트로 변환 → `Cmd+S` → `test.md` 저장 → 파일 내용 `- a\n`. 캐럿이 맨 앞으로 튀지 않는다.
@@ -328,9 +336,11 @@ git commit -m "feat(editor): textarea를 Milkdown 에디터로 교체"
 ### Task 3: 한글 IME 검증과 계획 문서 갱신
 
 **Files:**
+
 - Modify: `docs/PLAN.md` (2단계 체크박스, 기술 스택 표 Prettier 행, 3단계 gfm 항목)
 
 **Interfaces:**
+
 - Consumes: Task 2 결과물 전체
 
 - [ ] **Step 1: 한글 IME 수동 검증**
@@ -338,6 +348,7 @@ git commit -m "feat(editor): textarea를 Milkdown 에디터로 교체"
 Run: `pnpm tauri dev`. macOS 기본 두벌식 입력기로 확인한다.
 
 확인 항목(각 항목에서 자소 분리, 마지막 글자 누락, 글자 중복이 없어야 한다):
+
 1. `# ` 입력 → 제목 변환 → 이어서 `안녕하세요` 입력.
 2. `- ` 입력 → 리스트 변환 → 이어서 `첫 번째 항목` 입력 → Enter → `두 번째` 입력.
 3. `**굵게**` 입력 → 굵게 변환 → 이어서 ` 다음 글자` 입력.

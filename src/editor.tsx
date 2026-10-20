@@ -37,18 +37,22 @@ export function Editor({
     let cancelled = false;
     let handle: EditorHandle | null = null;
     const creating = createMarkdownEditor(rootRef.current!, () => onChangeRef.current());
-    creating.then((e) => {
-      if (cancelled) return e.destroy();
-      handle = handleRef.current = editorHandle(e);
-      onReadyRef.current();
-    }).catch((err) => void showError(String(err)));
+    creating
+      .then((e) => {
+        if (cancelled) return e.destroy();
+        handle = handleRef.current = editorHandle(e);
+        onReadyRef.current();
+      })
+      .catch((err) => void showError(String(err)));
     return () => {
       cancelled = true;
-      void creating.then((e) => {
-        if (handle === null) return; // 생성 완료 전 취소: 위 then이 이미 destroy했다
-        if (handleRef.current === handle) handleRef.current = null;
-        return e.destroy();
-      }).catch(() => {}); // 생성 실패는 위에서 이미 표시했다
+      void creating
+        .then((e) => {
+          if (handle === null) return; // 생성 완료 전 취소: 위 then이 이미 destroy했다
+          if (handleRef.current === handle) handleRef.current = null;
+          return e.destroy();
+        })
+        .catch(() => {}); // 생성 실패는 위에서 이미 표시했다
     };
   }, [handleRef]);
 

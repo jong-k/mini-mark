@@ -15,19 +15,20 @@ Typora 스타일의 위지윅(WYSIWYM) 편집 경험과 빠른 실행 속도, �
 
 ## 2. 확정 기술 스택
 
-| 영역 | 사용 기술 | 선정 이유 |
-| --- | --- | --- |
-| 데스크탑 런타임 | Tauri v2 (Rust) | WKWebView 기반의 가벼운 런타임, 네이티브 다이얼로그 제어 및 Rust 기반 안전한 파일 I/O 구현 |
-| 프론트엔드 코어 | React + TypeScript + Vite | 빠른 번들링 및 UI 컴포넌트 상태 관리 |
-| 에디터 엔진 | Milkdown (ProseMirror 기반) | 마크다운 친화적인 위지윅(WYSIWYM) 렌더링, GFM(표, 체크박스 등) 플러그인 생태계, 안정적인 한글 IME 입력 |
-| 마크다운 포매터 | 없음 (2단계에서 Prettier 제거) | Milkdown 직렬화(remark-stringify) 출력이 결정적이라 별도 포매터 불필요. 저장 시 LF 정규화와 끝 개행만 적용 |
-| 스타일링 | 순수 CSS (CSS 변수 + prefers-color-scheme) | 3단계에서 Tailwind 대신 선택. 에디터 본문 하나뿐이라 유틸리티 클래스가 필요 없음 |
+| 영역            | 사용 기술                                  | 선정 이유                                                                                                  |
+| --------------- | ------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| 데스크탑 런타임 | Tauri v2 (Rust)                            | WKWebView 기반의 가벼운 런타임, 네이티브 다이얼로그 제어 및 Rust 기반 안전한 파일 I/O 구현                 |
+| 프론트엔드 코어 | React + TypeScript + Vite                  | 빠른 번들링 및 UI 컴포넌트 상태 관리                                                                       |
+| 에디터 엔진     | Milkdown (ProseMirror 기반)                | 마크다운 친화적인 위지윅(WYSIWYM) 렌더링, GFM(표, 체크박스 등) 플러그인 생태계, 안정적인 한글 IME 입력     |
+| 마크다운 포매터 | 없음 (2단계에서 Prettier 제거)             | Milkdown 직렬화(remark-stringify) 출력이 결정적이라 별도 포매터 불필요. 저장 시 LF 정규화와 끝 개행만 적용 |
+| 스타일링        | 순수 CSS (CSS 변수 + prefers-color-scheme) | 3단계에서 Tailwind 대신 선택. 에디터 본문 하나뿐이라 유틸리티 클래스가 필요 없음                           |
 
 ---
 
 ## 3. 단계별 실행 로드맵 (4단계)
 
 ### 1단계: 파일 앱 뼈대 및 안전한 I/O 파이프라인 구축
+
 에디터 엔진을 붙이기 전 기본 `<textarea>` 상태에서 파일 입출력과 문서 생명주기를 먼저 완성한다. 본문은 React 상태에 두지 않고 `EditorHandle { getValue, setValue }` 인터페이스 뒤에 숨긴다. 2단계에서 이 인터페이스 구현체만 Milkdown으로 교체한다.
 
 상세 태스크: [`superpowers/plans/2026-10-19-phase1-file-io.md`](superpowers/plans/2026-10-19-phase1-file-io.md)
@@ -40,6 +41,7 @@ Typora 스타일의 위지윅(WYSIWYM) 편집 경험과 빠른 실행 속도, �
 - [x] 미저장 상태에서 창 닫기나 다른 파일 열기 시 경고 모달 방어 로직 구현
 
 ### 2단계: Milkdown 에디터 코어 교체 및 단방향 바인딩
+
 `<textarea>`를 들어내고 Milkdown 에디터를 마운트하여 기본 위지윅 마크다운 편집을 구현한다.
 
 상세 태스크: [`superpowers/plans/2026-10-19-phase2-milkdown-editor.md`](superpowers/plans/2026-10-19-phase2-milkdown-editor.md)
@@ -62,6 +64,7 @@ Typora 스타일의 위지윅(WYSIWYM) 편집 경험과 빠른 실행 속도, �
   - 작업 목록 체크 상태가 화면에 표시되지 않음 → 3단계에서 해결
 
 ### 3단계: Typora 스타일 UI 및 확장 렌더링 고도화
+
 마크다운 확장 문법을 붙이고 로컬 에셋 처리와 스타일을 다듬는다.
 
 상세 태스크: [`superpowers/plans/2026-10-19-phase3-typora-ui.md`](superpowers/plans/2026-10-19-phase3-typora-ui.md)
@@ -79,6 +82,7 @@ Typora 스타일의 위지윅(WYSIWYM) 편집 경험과 빠른 실행 속도, �
   - 창에 `.md` 파일을 드롭해도 열리지 않음(`dragDropEnabled: false`, HTML5 드롭을 이미지 업로드에 사용)
 
 ### 4단계: macOS 네이티브 통합 및 패키징
+
 실제 데스크탑 앱으로서의 사용성을 완성하고 배포용 번들을 생성한다.
 
 상세 태스크: [`superpowers/plans/2026-10-20-phase4-native-packaging.md`](superpowers/plans/2026-10-20-phase4-native-packaging.md)

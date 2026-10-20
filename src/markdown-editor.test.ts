@@ -149,37 +149,48 @@ it("normalizes CRLF front matter to LF like the body", async () => {
 it.each([
   ["제목에 내용 있음", "a\n\n## b\n", "ab\n"],
   ["빈 제목", "a\n\n####\n", "a\n"],
-])("backspace at the start of a heading joins the previous line: %s", async (_name, doc, expected) => {
-  const { handle, editor } = await setup();
-  handle.setValue(doc);
-  editor.action((ctx) => {
-    const view = ctx.get(editorViewCtx);
-    // doc(0) > paragraph("a")는 0..3, heading 내용은 4부터
-    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, 4)));
-    view.dom.dispatchEvent(
-      new KeyboardEvent("keydown", { key: "Backspace", keyCode: 8, bubbles: true, cancelable: true }),
-    );
-  });
-  expect(handle.getValue()).toBe(expected);
-});
+])(
+  "backspace at the start of a heading joins the previous line: %s",
+  async (_name, doc, expected) => {
+    const { handle, editor } = await setup();
+    handle.setValue(doc);
+    editor.action((ctx) => {
+      const view = ctx.get(editorViewCtx);
+      // doc(0) > paragraph("a")는 0..3, heading 내용은 4부터
+      view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, 4)));
+      view.dom.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "Backspace",
+          keyCode: 8,
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+    });
+    expect(handle.getValue()).toBe(expected);
+  },
+);
 
 it.each([
   ["문단에서 `# `", "a\n", "#", "# a\n"],
   ["h1에서 `## `는 h2", "# a\n", "##", "## a\n"],
   ["h2에서 `# `는 h1", "## a\n", "#", "# a\n"],
   ["h1에서 `# `는 h1 유지", "# a\n", "#", "# a\n"],
-])("heading input rule uses the typed hash count as the level: %s", async (_name, doc, hashes, expected) => {
-  const { handle, editor } = await setup();
-  handle.setValue(doc);
-  editor.action((ctx) => {
-    const view = ctx.get(editorViewCtx);
-    view.dispatch(view.state.tr.insertText(hashes, 1));
-    const pos = 1 + hashes.length;
-    // 입력 규칙은 handleTextInput으로만 동작한다. 공백 입력을 흉내 낸다.
-    view.someProp("handleTextInput", (f) => f(view, pos, pos, " ", () => view.state.tr));
-  });
-  expect(handle.getValue()).toBe(expected);
-});
+])(
+  "heading input rule uses the typed hash count as the level: %s",
+  async (_name, doc, hashes, expected) => {
+    const { handle, editor } = await setup();
+    handle.setValue(doc);
+    editor.action((ctx) => {
+      const view = ctx.get(editorViewCtx);
+      view.dispatch(view.state.tr.insertText(hashes, 1));
+      const pos = 1 + hashes.length;
+      // 입력 규칙은 handleTextInput으로만 동작한다. 공백 입력을 흉내 낸다.
+      view.someProp("handleTextInput", (f) => f(view, pos, pos, " ", () => view.state.tr));
+    });
+    expect(handle.getValue()).toBe(expected);
+  },
+);
 
 it("preserves code fence meta", async () => {
   const { handle } = await setup();
@@ -218,7 +229,14 @@ it("toggles the task item at the cursor with Mod-Enter", async () => {
     // doc(0) > bullet_list(0) > list_item(1) > paragraph(2) > "a"(3)
     view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, 3)));
     // jsdom은 navigator.platform이 비어 있어 Mod가 Ctrl이다.
-    view.dom.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", ctrlKey: true, bubbles: true, cancelable: true }));
+    view.dom.dispatchEvent(
+      new KeyboardEvent("keydown", {
+        key: "Enter",
+        ctrlKey: true,
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
   });
   expect(handle.getValue()).toBe("- [x] a\n");
 });
@@ -280,17 +298,22 @@ it("rewrites relative image src when the document moves to another folder", asyn
   handle.setFilePath("/a/n.md");
   handle.setValue("![pic](assets/p.png) ![abs](/x/q.png) ![web](https://example.com/r.png)\n");
   handle.setFilePath("/b/n.md");
-  expect(handle.getValue()).toBe("![pic](../a/assets/p.png) ![abs](/x/q.png) ![web](https://example.com/r.png)\n");
+  expect(handle.getValue()).toBe(
+    "![pic](../a/assets/p.png) ![abs](/x/q.png) ![web](https://example.com/r.png)\n",
+  );
   expect(imageSrc()).toBe("asset://localhost/a/assets/p.png");
   expect(onChange).not.toHaveBeenCalled();
   handle.setFilePath("/a/n.md");
-  expect(handle.getValue()).toBe("![pic](assets/p.png) ![abs](/x/q.png) ![web](https://example.com/r.png)\n");
+  expect(handle.getValue()).toBe(
+    "![pic](assets/p.png) ![abs](/x/q.png) ![web](https://example.com/r.png)\n",
+  );
 });
 
 it("rewrites local relative links when the document moves, leaving anchors and remote links", async () => {
   const { handle } = await setup();
   handle.setFilePath("/a/n.md");
-  const doc = "[doc](other.md) [sec](other.md#s) [web](https://example.com/x) [top](#top) [abs](/x/y.md)\n";
+  const doc =
+    "[doc](other.md) [sec](other.md#s) [web](https://example.com/x) [top](#top) [abs](/x/y.md)\n";
   handle.setValue(doc);
   handle.setFilePath("/b/n.md");
   expect(handle.getValue()).toBe(
@@ -311,8 +334,13 @@ it("keeps image decorations while typing elsewhere and decorates newly inserted 
     const image = ctx.get(schemaCtx).nodes.image!.create({ src: "assets/q.png" });
     view.dispatch(view.state.tr.insert(view.state.doc.content.size - 1, image));
   });
-  const srcs = Array.from(root!.querySelectorAll("img:not(.ProseMirror-separator)")).map((img) => img.getAttribute("src"));
-  expect(srcs).toEqual(["asset://localhost/docs/assets/p.png", "asset://localhost/docs/assets/q.png"]);
+  const srcs = Array.from(root!.querySelectorAll("img:not(.ProseMirror-separator)")).map((img) =>
+    img.getAttribute("src"),
+  );
+  expect(srcs).toEqual([
+    "asset://localhost/docs/assets/p.png",
+    "asset://localhost/docs/assets/q.png",
+  ]);
 });
 
 it("undo after moving the document restores image paths against the original folder", async () => {
@@ -394,7 +422,9 @@ function copyText(editor: Editor, from: number, to: number): string {
   return editor.action((ctx) => {
     const view = ctx.get(editorViewCtx);
     view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, from, to)));
-    return view.someProp("clipboardTextSerializer", (f) => f(view.state.selection.content(), view)) ?? "";
+    return (
+      view.someProp("clipboardTextSerializer", (f) => f(view.state.selection.content(), view)) ?? ""
+    );
   });
 }
 
@@ -426,7 +456,11 @@ function paste(editor: Editor, at: number, data: Record<string, string>): boolea
   return editor.action((ctx) => {
     const view = ctx.get(editorViewCtx);
     view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, at)));
-    const clipboardData = { types: Object.keys(data), getData: (type: string) => data[type] ?? "", files: [] };
+    const clipboardData = {
+      types: Object.keys(data),
+      getData: (type: string) => data[type] ?? "",
+      files: [],
+    };
     const event = { clipboardData } as unknown as ClipboardEvent;
     return view.someProp("handlePaste", (f) => f(view, event, Slice.empty)) ?? false;
   });
@@ -453,7 +487,13 @@ it("parses markdown copied from VS Code even though it carries html", async () =
   expect(paste(editor, 1, { "text/plain": "# 제목", "text/html": html })).toBe(true);
   expect(handle.getValue()).toBe("# 제목\n");
   handle.setValue("");
-  expect(paste(editor, 1, { "text/plain": "# 제목", "text/html": "<span>x</span>", "vscode-editor-data": "{}" })).toBe(true);
+  expect(
+    paste(editor, 1, {
+      "text/plain": "# 제목",
+      "text/html": "<span>x</span>",
+      "vscode-editor-data": "{}",
+    }),
+  ).toBe(true);
   expect(handle.getValue()).toBe("# 제목\n");
 });
 

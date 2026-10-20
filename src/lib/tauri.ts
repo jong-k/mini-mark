@@ -41,9 +41,7 @@ export function onOpenFileRequested(handler: (path: string) => void): Promise<()
   return listen<string>("open-file", (event) => handler(event.payload));
 }
 
-export function onDocumentAction(
-  handler: (action: DocumentAction) => void,
-): Promise<() => void> {
+export function onDocumentAction(handler: (action: DocumentAction) => void): Promise<() => void> {
   return listen<DocumentAction>("document-action", (event) => handler(event.payload));
 }
 
@@ -94,9 +92,7 @@ export function setWindowTitle(title: string): Promise<void> {
   return getCurrentWindow().setTitle(title);
 }
 
-export function onWindowCloseRequested(
-  handler: () => Promise<boolean>,
-): Promise<() => void> {
+export function onWindowCloseRequested(handler: () => Promise<boolean>): Promise<() => void> {
   return getCurrentWindow().onCloseRequested(async (event) => {
     if (!(await handler())) event.preventDefault();
   });

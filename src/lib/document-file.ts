@@ -8,7 +8,9 @@ export interface ReadDocumentDeps {
   read: (path: string) => Promise<string>;
 }
 
-export type ReadDocumentResult = { type: "cancel" } | { type: "open"; content: string; mtime: number | null };
+export type ReadDocumentResult =
+  | { type: "cancel" }
+  | { type: "open"; content: string; mtime: number | null };
 
 /**
  * 문서를 열기 위한 확인과 읽기. 미저장 변경이 있으면 버릴지 묻는다.
@@ -20,7 +22,8 @@ export async function readDocument(deps: ReadDocumentDeps): Promise<ReadDocument
   const mtime = await deps.modifiedAt(deps.path);
   const changesBeforeRead = deps.changeCount();
   const content = await deps.read(deps.path);
-  if (deps.changeCount() !== changesBeforeRead && !(await deps.confirmDiscard())) return { type: "cancel" };
+  if (deps.changeCount() !== changesBeforeRead && !(await deps.confirmDiscard()))
+    return { type: "cancel" };
   return { type: "open", content, mtime };
 }
 
