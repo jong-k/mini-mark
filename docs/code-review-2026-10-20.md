@@ -131,3 +131,16 @@ PLAN.md 4단계 완료 시점의 전체 코드베이스 리뷰 결과를 분류�
 ## 적용 상태 (2026-10-20)
 
 지금 고침 9개를 커밋 세 개로 적용했다. 자동 검사(tsc, Vitest, clippy, cargo test, vite build)는 통과했다. 지금 고침 7번(커맨드 async)과 8번(opener 제거)은 `pnpm tauri dev`에서 열기, 저장, 이미지 붙여넣기, 외부 변경 후 저장 확인 대화상자를 수동으로 확인해야 한다.
+
+나중에 고침 8개도 적용했다(2026-10-20).
+
+- 1번: `save_markdown_atomic`이 rename 전 임시 파일의 mtime을 돌려주고 프론트엔드가 기준값으로 쓴다.
+- 2번: 로컬 상대 링크도 이미지와 같은 기준으로 재계산한다. #앵커와 외부 URL, 절대 경로는 그대로 둔다. `imageFilePath`와 `relativeImageSrc`를 `localFilePath`, `relativeLocalSrc`로 바꿨다.
+- 3번: 이미지 데코레이션은 기존 것을 매핑하고 바뀐 범위만 다시 만든다.
+- 4번: 이미지는 `Uint8Array` raw body와 percent 인코딩한 헤더로 보낸다. Rust는 `tauri::ipc::Request`로 받고 `write_asset`이 파일을 쓴다.
+- 5번: 열기와 저장 전 확인 판정을 `src/lib/document-file.ts`(`readDocument`, `canOverwrite`)로 뽑아내고 테스트를 붙였다.
+- 6번: 작업 항목 `li`에 `role="checkbox"`와 `aria-checked`를 붙이고 Cmd+Enter로 토글한다.
+- 7번: 외부 변경 reload 시 내용이 같으면 본문을 바꾸지 않아 undo 기록을 지킨다.
+- 8번: `App`의 React 상태를 없애고 문서 메타데이터를 ref 하나에 둔다. AGENTS.md를 함께 고쳤다. 에디터 준비 전에 들어온 동작은 버리지 않고 기다린다.
+
+수동 확인 필요: `pnpm tauri dev`에서 이미지 붙여넣기(한글 폴더와 파일명 포함), 다른 폴더로 저장 후 링크 경로, Cmd+Enter 토글, VoiceOver로 작업 항목 읽기.
