@@ -4,12 +4,13 @@ use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-#[tauri::command]
+// 동기 커맨드는 메인 스레드에서 실행된다. 디스크 I/O가 UI를 멈추지 않게 fs 커맨드는 별도 스레드로 보낸다.
+#[tauri::command(async)]
 pub fn read_markdown(path: String) -> Result<String, String> {
     fs::read_to_string(path).map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn save_markdown_atomic(path: String, content: String) -> Result<(), String> {
     // symlink면 링크 대상에 쓴다. 새 파일은 canonicalize가 실패하므로 받은 경로를 그대로 쓴다.
     let path = fs::canonicalize(&path).unwrap_or_else(|_| PathBuf::from(&path));
@@ -56,7 +57,7 @@ pub fn save_markdown_atomic(path: String, content: String) -> Result<(), String>
 }
 
 // ponytail: data는 JSON 배열로 넘어온다. 수 MB 이미지가 느리면 tauri::ipc::Request raw body로 교체.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn save_asset(dir: String, file_name: String, data: Vec<u8>) -> Result<String, String> {
     if file_name.is_empty() || file_name.starts_with('.') || file_name.contains(['/', '\\']) {
         return Err(format!("invalid asset file name: {file_name}"));
@@ -89,7 +90,7 @@ pub fn save_asset(dir: String, file_name: String, data: Vec<u8>) -> Result<Strin
     Err(format!("too many assets named {file_name}"))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn file_modified_at(path: String) -> Result<u64, String> {
     let modified = fs::metadata(path)
         .and_then(|m| m.modified())

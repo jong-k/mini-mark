@@ -7,9 +7,7 @@
   ],
   "permissions": [
     "core:default",
-    "opener:default",
     "dialog:default",
-    "dialog:allow-ask",
     "core:window:allow-set-title",
     "core:window:allow-destroy"
   ]
