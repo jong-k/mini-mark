@@ -167,13 +167,14 @@ Expected: 경고 없음, 전체 PASS.
 - `openDocument`의 본문 중 `pickOpenPath` 이후를 `openPath(path)`로 뽑는다. `openPath`는 더티 확인에 `isDirtyRef.current`를 쓴다(이벤트 리스너에서 불리면 클로저의 `isDirty`가 낡은 값이다). `openPath` 안에서 `guarded`를 부르지 않는다.
 - 시작 시 열기는 리스너 등록과 에디터 준비를 모두 기다린 뒤 한 번만 한다.
 
+`useRef(new Promise(executor))`는 렌더마다 executor가 다시 돌아 resolver가 버려지는 Promise로 바뀐다(StrictMode 이중 렌더에서 재현). `src/lib/deferred.ts`의 `deferred<T>(): { promise, resolve }`를 `useState` 지연 초기화로 한 번만 만든다.
+
 ```ts
-const editorReady = useRef<() => void>(() => {});
-const editorReadyPromise = useRef(new Promise<void>((resolve) => { editorReady.current = resolve; }));
+const [editorReady] = useState(deferred<void>);
 
 useEffect(() => {
   const listening = onOpenFileRequested((p) => void guarded(() => openPath(p)));
-  void Promise.all([listening, editorReadyPromise.current]).then(async () => {
+  void Promise.all([listening, editorReady.promise]).then(async () => {
     const p = await takeOpenedFile();
     if (p !== null) await guarded(() => openPath(p));
   });
@@ -183,7 +184,7 @@ useEffect(() => {
 }, []);
 ```
 
-`<Editor onReady={() => editorReady.current()} ...>`. `take_opened_file`이 `ready`를 세우므로 그 뒤 도착한 `Opened`는 이벤트로만 오고, 그 전 것은 반환값으로만 온다.
+`<Editor onReady={() => editorReady.resolve()} ...>`. `take_opened_file`이 `ready`를 세우므로 그 뒤 도착한 `Opened`는 이벤트로만 오고, 그 전 것은 반환값으로만 온다.
 
 - [ ] **Step 8: 타입 체크와 테스트**
 

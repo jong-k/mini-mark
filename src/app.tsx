@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import "./app.css";
 import { Editor, type EditorHandle } from "./editor";
+import { deferred } from "./lib/deferred";
 import { blockFileDrop } from "./lib/file-drop";
 import { pollFileChange } from "./lib/file-watch";
 import { formatMarkdown } from "./lib/format-markdown";
@@ -167,17 +168,13 @@ export default function App() {
   const guardedRef = useRef(guarded);
   guardedRef.current = guarded;
 
-  const editorReady = useRef<() => void>(() => {});
-  const editorReadyPromise = useRef(
-    new Promise<void>((resolve) => {
-      editorReady.current = resolve;
-    }),
-  );
+  // useRef(new Promise(...))는 렌더마다 executor가 돌아 resolver가 버려지는 Promise로 바뀐다. 지연 초기화로 한 번만 만든다.
+  const [editorReady] = useState(deferred<void>);
 
   useEffect(() => {
     const listening = onOpenFileRequested((p) => void guardedRef.current(() => openPath(p)));
     // 리스너와 에디터가 모두 준비된 뒤 가져온다. take가 Rust의 ready를 세워 이후 요청은 이벤트로만 온다.
-    void Promise.all([listening, editorReadyPromise.current]).then(async () => {
+    void Promise.all([listening, editorReady.promise]).then(async () => {
       const p = await takeOpenedFile().catch(() => null);
       if (p !== null) await guardedRef.current(() => openPath(p));
     });
@@ -215,7 +212,7 @@ export default function App() {
     <Editor
       handleRef={editor}
       onChange={() => setIsDirty(true)}
-      onReady={() => editorReady.current()}
+      onReady={() => editorReady.resolve()}
     />
   );
 }
