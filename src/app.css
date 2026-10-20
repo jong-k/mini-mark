@@ -33,7 +33,7 @@ body,
 
 .ProseMirror {
   min-height: 100vh;
-  max-width: 760px;
+  max-width: 860px;
   margin: 0 auto;
   padding: 48px 32px;
   box-sizing: border-box;
@@ -43,6 +43,16 @@ body,
     "Apple SD Gothic Neo",
     system-ui,
     sans-serif;
+}
+@media (min-width: 1400px) {
+  .ProseMirror {
+    max-width: 1024px;
+  }
+}
+@media (min-width: 1800px) {
+  .ProseMirror {
+    max-width: 1200px;
+  }
 }
 
 .ProseMirror h1 {
