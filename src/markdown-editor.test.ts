@@ -132,6 +132,13 @@ it.each([
   expect(handle.getValue()).toBe(doc);
 });
 
+it("separates typed body from front matter that ended without a newline", async () => {
+  const { handle, type } = await setup();
+  handle.setValue("---\ntitle: x\n---");
+  type("body");
+  expect(handle.getValue()).toBe("---\ntitle: x\n---\nbody\n");
+});
+
 it("normalizes CRLF front matter to LF like the body", async () => {
   const { handle } = await setup();
   handle.setValue("---\r\ntitle: x\r\n---\r\n\r\n# 본문\r\n");

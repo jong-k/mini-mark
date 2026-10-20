@@ -1,5 +1,6 @@
 use std::fs::{self, OpenOptions};
 use std::io::{ErrorKind, Write};
+use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -16,6 +17,13 @@ pub fn save_markdown_atomic(path: String, content: String) -> Result<(), String>
         .file_name()
         .ok_or_else(|| "invalid file path".to_string())?
         .to_string_lossy();
+    // 원본이 있으면 임시 파일을 0600으로 만들고 교체 전에 원본 권한을 복사한다. 기본 권한으로 만들면 0600 파일이 0644로 넓어진다.
+    let original_permissions = fs::metadata(&path).ok().map(|m| m.permissions());
+    let mut options = OpenOptions::new();
+    options.write(true).create_new(true);
+    if original_permissions.is_some() {
+        options.mode(0o600);
+    }
     // create_new(O_EXCL)는 해당 경로에 무엇이든(symlink 포함) 있으면 실패하므로 기존 파일을 건드리지 않는다.
     let mut attempt = 0;
     let (tmp, mut file) = loop {
@@ -24,7 +32,7 @@ pub fn save_markdown_atomic(path: String, content: String) -> Result<(), String>
             .unwrap_or_default()
             .as_nanos();
         let tmp = path.with_file_name(format!(".{file_name}.{}.{nanos}.tmp", std::process::id()));
-        match OpenOptions::new().write(true).create_new(true).open(&tmp) {
+        match options.open(&tmp) {
             Ok(f) => break (tmp, f),
             Err(e) if e.kind() == ErrorKind::AlreadyExists && attempt < 9 => attempt += 1,
             Err(e) => return Err(e.to_string()),
@@ -34,7 +42,11 @@ pub fn save_markdown_atomic(path: String, content: String) -> Result<(), String>
         .write_all(content.as_bytes())
         .and_then(|_| file.sync_all());
     drop(file);
-    // ponytail: rename은 원본 inode를 교체하므로 원본의 권한/xattr은 유지되지 않는다. 필요해지면 metadata 복사 추가.
+    let result = result.and_then(|_| match original_permissions {
+        Some(permissions) => fs::set_permissions(&tmp, permissions),
+        None => Ok(()),
+    });
+    // ponytail: rename은 원본 inode를 교체하므로 xattr(Finder 태그)은 유지되지 않는다. 필요해지면 copyfile로 복사.
     let result = result.and_then(|_| fs::rename(&tmp, &path));
     if let Err(e) = result {
         let _ = fs::remove_file(&tmp);
@@ -112,6 +124,36 @@ mod tests {
         save_markdown_atomic(path.to_string_lossy().into(), "new".into()).unwrap();
         assert_eq!(fs::read_to_string(&path).unwrap(), "new");
         assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 1);
+    }
+
+    #[test]
+    fn save_keeps_original_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("a.md");
+        fs::write(&path, "old").unwrap();
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).unwrap();
+        save_markdown_atomic(path.to_string_lossy().into(), "new".into()).unwrap();
+        assert_eq!(
+            fs::metadata(&path).unwrap().permissions().mode() & 0o777,
+            0o600
+        );
+    }
+
+    #[test]
+    fn save_new_file_is_not_forced_private() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("a.md");
+        save_markdown_atomic(path.to_string_lossy().into(), "new".into()).unwrap();
+        let mode = fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+        let plain = dir.path().join("plain.md");
+        fs::write(&plain, "x").unwrap();
+        // 새 파일은 umask 기본 권한을 따른다. 임시 파일에 적용한 0600이 남지 않아야 한다.
+        assert_eq!(
+            mode,
+            fs::metadata(&plain).unwrap().permissions().mode() & 0o777
+        );
     }
 
     #[test]

@@ -183,7 +183,12 @@ export function editorHandle(editor: Editor): EditorHandle {
   // front matter는 에디터에서 편집하지 않고 보존만 한다. commonmark 파서가 구분선과 제목으로 망가뜨린다.
   let frontMatter = "";
   return {
-    getValue: () => frontMatter + editor.action(getMarkdown()),
+    getValue: () => {
+      const body = editor.action(getMarkdown());
+      // 닫는 --- 뒤에 개행 없이 끝난 front matter에 본문이 생기면 구분자와 본문이 붙는다.
+      const gap = body !== "" && frontMatter !== "" && !frontMatter.endsWith("\n") ? "\n" : "";
+      return frontMatter + gap + body;
+    },
     // flush=true: 교체가 히스토리에 쌓이거나 onChange를 발생시키지 않게 한다.
     setValue: (value) => {
       const raw = value.match(/^\uFEFF?---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)(?:\r?\n)*/)?.[0] ?? "";
