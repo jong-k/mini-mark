@@ -202,6 +202,7 @@ export default function App() {
       window.removeEventListener("dragover", blockFileDrop);
       window.removeEventListener("drop", blockFileDrop);
     };
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- 마운트 시 한 번만 등록한다. 핸들러는 doc ref로 최신값을 읽는다.
   }, []);
 
   return (

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { showError } from "./lib/tauri";
 import { createMarkdownEditor, editorHandle } from "./markdown-editor";
 
@@ -27,9 +27,11 @@ export function Editor({
   const rootRef = useRef<HTMLDivElement>(null);
   // app.tsx가 매 렌더마다 새 onChange를 넘긴다. 이펙트 의존성에 넣으면 에디터가 재생성되어 본문이 사라진다.
   const onChangeRef = useRef(onChange);
-  onChangeRef.current = onChange;
   const onReadyRef = useRef(onReady);
-  onReadyRef.current = onReady;
+  useLayoutEffect(() => {
+    onChangeRef.current = onChange;
+    onReadyRef.current = onReady;
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -48,7 +50,7 @@ export function Editor({
         return e.destroy();
       }).catch(() => {}); // 생성 실패는 위에서 이미 표시했다
     };
-  }, []);
+  }, [handleRef]);
 
   return <div ref={rootRef} />;
 }
