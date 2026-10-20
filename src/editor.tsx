@@ -17,14 +17,19 @@ export interface EditorHandle {
 export function Editor({
   handleRef,
   onChange,
+  onReady,
 }: {
   handleRef: React.RefObject<EditorHandle | null>;
   onChange: () => void;
+  /** `handleRef.current`가 채워진 직후 한 번 호출된다. */
+  onReady: () => void;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   // app.tsx가 매 렌더마다 새 onChange를 넘긴다. 이펙트 의존성에 넣으면 에디터가 재생성되어 본문이 사라진다.
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
+  const onReadyRef = useRef(onReady);
+  onReadyRef.current = onReady;
 
   useEffect(() => {
     let cancelled = false;
@@ -33,6 +38,7 @@ export function Editor({
     creating.then((e) => {
       if (cancelled) return e.destroy();
       handle = handleRef.current = editorHandle(e);
+      onReadyRef.current();
     }).catch((err) => void showError(String(err)));
     return () => {
       cancelled = true;

@@ -6,6 +6,7 @@ import { blockFileDrop } from "./lib/file-drop";
 import { formatMarkdown } from "./lib/format-markdown";
 import {
   confirmDiscard,
+  onOpenFileRequested,
   onWindowCloseRequested,
   pickOpenPath,
   pickSavePath,
@@ -13,6 +14,7 @@ import {
   saveMarkdownAtomic,
   setWindowTitle,
   showError,
+  takeOpenedFile,
 } from "./lib/tauri";
 import { windowTitle } from "./lib/window-title";
 
@@ -41,19 +43,27 @@ export default function App() {
     });
   }
 
-  function openDocument() {
+  // 가드를 잡지 않는다. 진입점(메뉴, Finder 열기, 폴링)이 guarded로 한 번만 감싼다.
+  function openPath(path: string) {
     return run(async () => {
       const h = editor.current;
       if (!h) return;
-      if (isDirty && !(await confirmDiscard())) return;
-      const path = await pickOpenPath();
-      if (path === null) return;
+      if (isDirtyRef.current && !(await confirmDiscard())) return;
       const content = await readMarkdown(path);
       h.setFilePath(path);
       h.setValue(content);
       setFilePath(path);
       setIsDirty(false);
     });
+  }
+
+  async function openDocument() {
+    const path = await pickOpenPath().catch(async (err) => {
+      await showError(String(err));
+      return null;
+    });
+    if (path === null) return;
+    await openPath(path);
   }
 
   function saveDocument(path: string) {
@@ -100,6 +110,39 @@ export default function App() {
   const isDirtyRef = useRef(isDirty);
   isDirtyRef.current = isDirty;
 
+  // 저장 중 Cmd+N/Cmd+O가 끼어들면 새 문서가 이전 경로에 묶인다. 진행 중인 동작이 끝날 때까지 다른 진입을 무시한다.
+  // 이벤트 진입점에서만 부른다. 문서 함수 안에서 중첩하면 안쪽 호출이 무시된다.
+  async function guarded(fn: () => Promise<void>) {
+    if (busy.current) return;
+    busy.current = true;
+    try {
+      await fn();
+    } finally {
+      busy.current = false;
+    }
+  }
+  const guardedRef = useRef(guarded);
+  guardedRef.current = guarded;
+
+  const editorReady = useRef<() => void>(() => {});
+  const editorReadyPromise = useRef(
+    new Promise<void>((resolve) => {
+      editorReady.current = resolve;
+    }),
+  );
+
+  useEffect(() => {
+    const listening = onOpenFileRequested((p) => void guardedRef.current(() => openPath(p)));
+    // 리스너와 에디터가 모두 준비된 뒤 가져온다. take가 Rust의 ready를 세워 이후 요청은 이벤트로만 온다.
+    void Promise.all([listening, editorReadyPromise.current]).then(async () => {
+      const p = await takeOpenedFile().catch(() => null);
+      if (p !== null) await guardedRef.current(() => openPath(p));
+    });
+    return () => {
+      void listening.then((fn) => fn());
+    };
+  }, []);
+
   useEffect(() => {
     // ponytail: 버리기/취소 2버튼. 저장/버리기/취소 3버튼이 필요하면 커스텀 모달로 교체.
     const unlisten = onWindowCloseRequested(
@@ -111,18 +154,11 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    // 저장 중 Cmd+N/Cmd+O가 끼어들면 새 문서가 이전 경로에 묶인다. 진행 중인 동작이 끝날 때까지 단축키를 무시한다.
-    async function onKeyDown(e: KeyboardEvent) {
+    function onKeyDown(e: KeyboardEvent) {
       const action = matchShortcut(e);
       if (action === null) return;
       e.preventDefault();
-      if (busy.current) return;
-      busy.current = true;
-      try {
-        await actions.current[action]();
-      } finally {
-        busy.current = false;
-      }
+      void guardedRef.current(() => actions.current[action]());
     }
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("dragover", blockFileDrop);
@@ -134,5 +170,11 @@ export default function App() {
     };
   }, []);
 
-  return <Editor handleRef={editor} onChange={() => setIsDirty(true)} />;
+  return (
+    <Editor
+      handleRef={editor}
+      onChange={() => setIsDirty(true)}
+      onReady={() => editorReady.current()}
+    />
+  );
 }

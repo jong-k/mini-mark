@@ -1,4 +1,5 @@
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { ask, message, open, save } from "@tauri-apps/plugin-dialog";
 
@@ -19,6 +20,15 @@ export function saveAsset(dir: string, fileName: string, data: number[]): Promis
 
 export function assetUrl(path: string): string {
   return convertFileSrc(path);
+}
+
+/** 콜드 스타트 때 Finder가 넘긴 파일 경로. 한 번 부르면 이후 요청은 `onOpenFileRequested`로만 온다. */
+export function takeOpenedFile(): Promise<string | null> {
+  return invoke<string | null>("take_opened_file");
+}
+
+export function onOpenFileRequested(handler: (path: string) => void): Promise<() => void> {
+  return listen<string>("open-file", (event) => handler(event.payload));
 }
 
 export function pickOpenPath(): Promise<string | null> {
