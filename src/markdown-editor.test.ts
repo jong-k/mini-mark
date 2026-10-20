@@ -199,6 +199,30 @@ it("toggles task item checked state", async () => {
   expect(handle.getValue()).toBe("- [ ] a\n");
 });
 
+it("exposes task items as checkboxes to assistive technology", async () => {
+  const { handle, editor } = await setup();
+  handle.setValue("- [ ] a\n- b\n");
+  const task = () => root!.querySelector('li[data-item-type="task"]')!;
+  expect(task().getAttribute("role")).toBe("checkbox");
+  expect(task().getAttribute("aria-checked")).toBe("false");
+  expect(root!.querySelectorAll("li")[1]!.hasAttribute("role")).toBe(false);
+  editor.action((ctx) => toggleTaskItem(ctx.get(editorViewCtx), 1));
+  expect(task().getAttribute("aria-checked")).toBe("true");
+});
+
+it("toggles the task item at the cursor with Mod-Enter", async () => {
+  const { handle, editor } = await setup();
+  handle.setValue("- [ ] a\n");
+  editor.action((ctx) => {
+    const view = ctx.get(editorViewCtx);
+    // doc(0) > bullet_list(0) > list_item(1) > paragraph(2) > "a"(3)
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, 3)));
+    // jsdom은 navigator.platform이 비어 있어 Mod가 Ctrl이다.
+    view.dom.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", ctrlKey: true, bubbles: true, cancelable: true }));
+  });
+  expect(handle.getValue()).toBe("- [x] a\n");
+});
+
 it("ignores toggle on a plain list item", async () => {
   const { handle, editor } = await setup();
   handle.setValue("- a\n");
@@ -263,6 +287,34 @@ it("rewrites relative image src when the document moves to another folder", asyn
   expect(handle.getValue()).toBe("![pic](assets/p.png) ![abs](/x/q.png) ![web](https://example.com/r.png)\n");
 });
 
+it("rewrites local relative links when the document moves, leaving anchors and remote links", async () => {
+  const { handle } = await setup();
+  handle.setFilePath("/a/n.md");
+  const doc = "[doc](other.md) [sec](other.md#s) [web](https://example.com/x) [top](#top) [abs](/x/y.md)\n";
+  handle.setValue(doc);
+  handle.setFilePath("/b/n.md");
+  expect(handle.getValue()).toBe(
+    "[doc](../a/other.md) [sec](../a/other.md#s) [web](https://example.com/x) [top](#top) [abs](/x/y.md)\n",
+  );
+  handle.setFilePath("/a/n.md");
+  expect(handle.getValue()).toBe(doc);
+});
+
+it("keeps image decorations while typing elsewhere and decorates newly inserted images", async () => {
+  const { handle, editor, type } = await setup();
+  handle.setFilePath("/docs/n.md");
+  handle.setValue("![pic](assets/p.png)\n\ntext\n");
+  type("x");
+  expect(imageSrc()).toBe("asset://localhost/docs/assets/p.png");
+  editor.action((ctx) => {
+    const view = ctx.get(editorViewCtx);
+    const image = ctx.get(schemaCtx).nodes.image!.create({ src: "assets/q.png" });
+    view.dispatch(view.state.tr.insert(view.state.doc.content.size - 1, image));
+  });
+  const srcs = Array.from(root!.querySelectorAll("img:not(.ProseMirror-separator)")).map((img) => img.getAttribute("src"));
+  expect(srcs).toEqual(["asset://localhost/docs/assets/p.png", "asset://localhost/docs/assets/q.png"]);
+});
+
 it("undo after moving the document restores image paths against the original folder", async () => {
   const { handle, editor, runUndo } = await setup();
   handle.setFilePath("/a/n.md");
@@ -290,7 +342,7 @@ it("upload started before moving the document keeps pointing at the saved file",
   handle.setFilePath("/b/n.md");
   finish("assets/image-1.png");
   const nodes = (await pending) as Node[];
-  expect(saveAsset).toHaveBeenCalledWith("/a", expect.any(String), [1]);
+  expect(saveAsset).toHaveBeenCalledWith("/a", expect.any(String), new Uint8Array([1]));
   editor.action((ctx) => {
     const view = ctx.get(editorViewCtx);
     view.dispatch(view.state.tr.insert(1, nodes[0]!));
@@ -329,7 +381,11 @@ it("pasting an image saves it under assets and returns a relative image node", a
   handle.setFilePath("/docs/n.md");
   const file = new File([new Uint8Array([1, 2, 3])], "image.png", { type: "image/png" });
   const nodes = await runUploader(editor, [file]);
-  expect(saveAsset).toHaveBeenCalledWith("/docs", expect.stringMatching(/^image-\d{8}-\d{6}\.png$/), [1, 2, 3]);
+  expect(saveAsset).toHaveBeenCalledWith(
+    "/docs",
+    expect.stringMatching(/^image-\d{8}-\d{6}\.png$/),
+    new Uint8Array([1, 2, 3]),
+  );
   expect(nodes).toHaveLength(1);
   expect((nodes as Node[])[0]!.attrs.src).toMatch(/^assets\/image-\d{8}-\d{6}\.png$/);
 });

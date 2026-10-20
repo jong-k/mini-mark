@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { assetFileName, imageFilePath, relativeImageSrc } from "./image-asset";
+import { assetFileName, localFilePath, relativeLocalSrc } from "./image-asset";
 
 it.each([
   ["assets/a.png", "/docs/n.md", "/docs/assets/a.png"],
@@ -16,7 +16,7 @@ it.each([
   ["a.png", null, null],
   ["", "/docs/n.md", null],
 ])("imageFilePath(%j, %j) = %j", (src, doc, expected) => {
-  expect(imageFilePath(src, doc)).toBe(expected);
+  expect(localFilePath(src, doc)).toBe(expected);
 });
 
 it.each([
@@ -27,8 +27,8 @@ it.each([
   ["/a/chart#1.png", "/a/n.md", "chart%231.png"],
   ["/a/100%.png", "/a/n.md", "100%25.png"],
 ])("relativeImageSrc(%j, %j) = %j", (abs, doc, expected) => {
-  expect(relativeImageSrc(abs, doc)).toBe(expected);
-  expect(imageFilePath(expected, doc)).toBe(abs);
+  expect(relativeLocalSrc(abs, doc)).toBe(expected);
+  expect(localFilePath(expected, doc)).toBe(abs);
 });
 
 const now = new Date(2026, 9, 19, 15, 30, 12);

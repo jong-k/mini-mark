@@ -12,13 +12,16 @@ export function readMarkdown(path: string): Promise<string> {
   return invoke<string>("read_markdown", { path });
 }
 
-export function saveMarkdownAtomic(path: string, content: string): Promise<void> {
-  return invoke<void>("save_markdown_atomic", { path, content });
+/** 저장된 파일의 mtime(ms)을 돌려준다. 외부 변경 감시 기준값으로 쓴다. */
+export function saveMarkdownAtomic(path: string, content: string): Promise<number> {
+  return invoke<number>("save_markdown_atomic", { path, content });
 }
 
-// ponytail: number[]는 JSON으로 직렬화된다. 큰 이미지가 느리면 Uint8Array raw body와 헤더로 교체.
-export function saveAsset(dir: string, fileName: string, data: number[]): Promise<string> {
-  return invoke<string>("save_asset", { dir, fileName, data });
+export function saveAsset(dir: string, fileName: string, data: Uint8Array): Promise<string> {
+  // 바이트는 JSON을 거치지 않는 raw body로 보낸다. 헤더는 ASCII만 허용하므로 경로와 파일명은 percent 인코딩한다.
+  return invoke<string>("save_asset", data, {
+    headers: { dir: encodeURIComponent(dir), "file-name": encodeURIComponent(fileName) },
+  });
 }
 
 export function assetUrl(path: string): string {

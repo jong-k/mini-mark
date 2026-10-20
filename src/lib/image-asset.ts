@@ -1,6 +1,6 @@
 const SCHEME = /^[a-z][a-z0-9+.-]*:/i;
 
-export function imageFilePath(src: string, documentPath: string | null): string | null {
+export function localFilePath(src: string, documentPath: string | null): string | null {
   if (src === "" || SCHEME.test(src)) return null;
   let decoded: string;
   try {
@@ -20,7 +20,7 @@ export function imageFilePath(src: string, documentPath: string | null): string 
   return parts.join("/");
 }
 
-export function relativeImageSrc(absolutePath: string, documentPath: string): string {
+export function relativeLocalSrc(absolutePath: string, documentPath: string): string {
   const from = documentPath.split("/").slice(1, -1);
   const to = absolutePath.split("/").slice(1);
   let i = 0;

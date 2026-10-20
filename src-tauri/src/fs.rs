@@ -4,6 +4,16 @@ use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use percent_encoding::percent_decode_str;
+use tauri::ipc::{InvokeBody, Request};
+
+fn millis(time: SystemTime) -> Result<u64, String> {
+    Ok(time
+        .duration_since(UNIX_EPOCH)
+        .map_err(|e| e.to_string())?
+        .as_millis() as u64)
+}
+
 // 동기 커맨드는 메인 스레드에서 실행된다. 디스크 I/O가 UI를 멈추지 않게 fs 커맨드는 별도 스레드로 보낸다.
 #[tauri::command(async)]
 pub fn read_markdown(path: String) -> Result<String, String> {
@@ -11,7 +21,8 @@ pub fn read_markdown(path: String) -> Result<String, String> {
 }
 
 #[tauri::command(async)]
-pub fn save_markdown_atomic(path: String, content: String) -> Result<(), String> {
+/// 저장된 파일의 mtime(ms)을 돌려준다.
+pub fn save_markdown_atomic(path: String, content: String) -> Result<u64, String> {
     // symlink면 링크 대상에 쓴다. 새 파일은 canonicalize가 실패하므로 받은 경로를 그대로 쓴다.
     let path = fs::canonicalize(&path).unwrap_or_else(|_| PathBuf::from(&path));
     let file_name = path
@@ -39,38 +50,67 @@ pub fn save_markdown_atomic(path: String, content: String) -> Result<(), String>
             Err(e) => return Err(e.to_string()),
         }
     };
-    let result = file
+    let written = file
         .write_all(content.as_bytes())
-        .and_then(|_| file.sync_all());
+        .and_then(|_| file.sync_all())
+        .and_then(|_| file.metadata())
+        .and_then(|m| m.modified());
     drop(file);
-    let result = result.and_then(|_| match original_permissions {
-        Some(permissions) => fs::set_permissions(&tmp, permissions),
-        None => Ok(()),
+    let result = written.and_then(|modified| {
+        if let Some(permissions) = original_permissions {
+            fs::set_permissions(&tmp, permissions)?;
+        }
+        // ponytail: rename은 원본 inode를 교체하므로 xattr(Finder 태그)은 유지되지 않는다. 필요해지면 copyfile로 복사.
+        // rename은 mtime을 바꾸지 않으므로 교체 전에 읽은 임시 파일의 mtime이 저장된 파일의 mtime이다.
+        // 교체 뒤에 stat하면 그 사이 들어온 외부 수정의 mtime을 기준으로 삼아 변경을 놓친다.
+        fs::rename(&tmp, &path)?;
+        Ok(modified)
     });
-    // ponytail: rename은 원본 inode를 교체하므로 xattr(Finder 태그)은 유지되지 않는다. 필요해지면 copyfile로 복사.
-    let result = result.and_then(|_| fs::rename(&tmp, &path));
-    if let Err(e) = result {
-        let _ = fs::remove_file(&tmp);
-        return Err(e.to_string());
+    match result {
+        Ok(modified) => millis(modified),
+        Err(e) => {
+            let _ = fs::remove_file(&tmp);
+            Err(e.to_string())
+        }
     }
-    Ok(())
 }
 
-// ponytail: data는 JSON 배열로 넘어온다. 수 MB 이미지가 느리면 tauri::ipc::Request raw body로 교체.
+/// 바이트는 raw body로, 경로와 파일명은 percent 인코딩한 헤더로 받는다. JSON 배열보다 복사가 적다.
 #[tauri::command(async)]
-pub fn save_asset(dir: String, file_name: String, data: Vec<u8>) -> Result<String, String> {
+pub fn save_asset(request: Request<'_>) -> Result<String, String> {
+    let header = |name: &str| -> Result<String, String> {
+        let raw = request
+            .headers()
+            .get(name)
+            .ok_or_else(|| format!("missing header: {name}"))?
+            .to_str()
+            .map_err(|e| e.to_string())?;
+        Ok(percent_decode_str(raw)
+            .decode_utf8()
+            .map_err(|e| e.to_string())?
+            .into_owned())
+    };
+    let dir = header("dir")?;
+    let file_name = header("file-name")?;
+    let InvokeBody::Raw(data) = request.body() else {
+        return Err("expected raw body".to_string());
+    };
+    write_asset(&dir, &file_name, data)
+}
+
+pub fn write_asset(dir: &str, file_name: &str, data: &[u8]) -> Result<String, String> {
     if file_name.is_empty() || file_name.starts_with('.') || file_name.contains(['/', '\\']) {
         return Err(format!("invalid asset file name: {file_name}"));
     }
-    let assets = Path::new(&dir).join("assets");
+    let assets = Path::new(dir).join("assets");
     fs::create_dir_all(&assets).map_err(|e| e.to_string())?;
     let (stem, ext) = match file_name.rsplit_once('.') {
         Some((s, e)) if !s.is_empty() => (s.to_string(), format!(".{e}")),
-        _ => (file_name.clone(), String::new()),
+        _ => (file_name.to_string(), String::new()),
     };
     for n in 0..100u32 {
         let name = if n == 0 {
-            file_name.clone()
+            file_name.to_string()
         } else {
             format!("{stem}-{n}{ext}")
         };
@@ -80,7 +120,7 @@ pub fn save_asset(dir: String, file_name: String, data: Vec<u8>) -> Result<Strin
             .open(assets.join(&name))
         {
             Ok(mut file) => {
-                file.write_all(&data).map_err(|e| e.to_string())?;
+                file.write_all(data).map_err(|e| e.to_string())?;
                 return Ok(format!("assets/{name}"));
             }
             Err(e) if e.kind() == ErrorKind::AlreadyExists => continue,
@@ -92,13 +132,10 @@ pub fn save_asset(dir: String, file_name: String, data: Vec<u8>) -> Result<Strin
 
 #[tauri::command(async)]
 pub fn file_modified_at(path: String) -> Result<u64, String> {
-    let modified = fs::metadata(path)
+    fs::metadata(path)
         .and_then(|m| m.modified())
-        .map_err(|e| e.to_string())?;
-    let since_epoch = modified
-        .duration_since(UNIX_EPOCH)
-        .map_err(|e| e.to_string())?;
-    Ok(since_epoch.as_millis() as u64)
+        .map_err(|e| e.to_string())
+        .and_then(millis)
 }
 
 #[cfg(test)]
@@ -198,14 +235,20 @@ mod tests {
     }
 
     #[test]
-    fn save_asset_writes_under_assets_and_returns_relative_path() {
+    fn save_returns_mtime_of_saved_file() {
         let dir = tempfile::tempdir().unwrap();
-        let rel = save_asset(
-            dir.path().to_string_lossy().into(),
-            "a.png".into(),
-            vec![1, 2, 3],
-        )
-        .unwrap();
+        let path = dir.path().join("a.md");
+        let saved = save_markdown_atomic(path.to_string_lossy().into(), "x".into()).unwrap();
+        assert_eq!(
+            saved,
+            file_modified_at(path.to_string_lossy().into()).unwrap()
+        );
+    }
+
+    #[test]
+    fn write_asset_writes_under_assets_and_returns_relative_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let rel = write_asset(&dir.path().to_string_lossy(), "a.png", &[1, 2, 3]).unwrap();
         assert_eq!(rel, "assets/a.png");
         assert_eq!(
             fs::read(dir.path().join("assets/a.png")).unwrap(),
@@ -214,24 +257,24 @@ mod tests {
     }
 
     #[test]
-    fn save_asset_adds_suffix_on_collision() {
+    fn write_asset_adds_suffix_on_collision() {
         let dir = tempfile::tempdir().unwrap();
-        let d: String = dir.path().to_string_lossy().into();
-        save_asset(d.clone(), "a.png".into(), vec![1]).unwrap();
-        let second = save_asset(d.clone(), "a.png".into(), vec![2]).unwrap();
-        let third = save_asset(d, "a.png".into(), vec![3]).unwrap();
+        let d = dir.path().to_string_lossy();
+        write_asset(&d, "a.png", &[1]).unwrap();
+        let second = write_asset(&d, "a.png", &[2]).unwrap();
+        let third = write_asset(&d, "a.png", &[3]).unwrap();
         assert_eq!(second, "assets/a-1.png");
         assert_eq!(third, "assets/a-2.png");
         assert_eq!(fs::read(dir.path().join("assets/a.png")).unwrap(), vec![1]);
     }
 
     #[test]
-    fn save_asset_rejects_path_traversal_and_hidden_names() {
+    fn write_asset_rejects_path_traversal_and_hidden_names() {
         let dir = tempfile::tempdir().unwrap();
-        let d: String = dir.path().to_string_lossy().into();
-        assert!(save_asset(d.clone(), "../x.png".into(), vec![1]).is_err());
-        assert!(save_asset(d.clone(), ".hidden".into(), vec![1]).is_err());
-        assert!(save_asset(d, "".into(), vec![1]).is_err());
+        let d = dir.path().to_string_lossy();
+        assert!(write_asset(&d, "../x.png", &[1]).is_err());
+        assert!(write_asset(&d, ".hidden", &[1]).is_err());
+        assert!(write_asset(&d, "", &[1]).is_err());
     }
 
     #[test]
