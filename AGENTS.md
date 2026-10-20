@@ -19,9 +19,10 @@
 - Tauri `invoke`와 플러그인 호출은 `src/lib/tauri.ts` 래퍼를 거친다. 컴포넌트에서 `invoke`를 직접 호출하지 않는다.
 - 순수 함수(포매터, 타이틀, 단축키 매칭)는 Vitest로 테스트한다. Tauri 연동은 `pnpm tauri dev`로 수동 검증한다.
 - 무거운 의존성(Prettier 등)은 정적 import 대신 사용 시점에 `import()`로 지연 로드한다.
+- JS/TS 린트는 Oxlint(`.oxlintrc.json`), 포맷은 oxfmt 기본 설정을 따른다. 마크다운도 oxfmt로 포맷한다. 커밋 전 `pnpm lint`, `pnpm fmt:check`를 통과시킨다.
 
 ## Rust (src-tauri)
 
-- 별도 컨벤션 문서 없음. `cargo fmt`와 `cargo clippy` 기본 설정을 따른다.
+- 별도 컨벤션 문서 없음. `cargo fmt`와 `cargo clippy` 기본 설정을 따른다. Rust를 고치면 커밋 전 `pnpm fmt:rs`, `pnpm lint:rs`를 실행한다.
 - 명명은 Rust 표준(함수와 변수 snake_case, 타입 PascalCase, 상수 SCREAMING_SNAKE_CASE)을 따른다. Tauri 커맨드 함수명도 snake_case로 쓰고 프론트엔드 `invoke` 문자열과 동일하게 맞춘다.
 - 커맨드 에러는 `Result<T, String>`으로 반환한다. 프론트엔드가 문자열로 표시한다.

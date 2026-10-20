@@ -11,7 +11,9 @@
     "test": "vitest run",
     "lint": "oxlint --deny-warnings",
     "fmt": "oxfmt",
-    "fmt:check": "oxfmt --check"
+    "fmt:check": "oxfmt --check",
+    "fmt:rs": "cargo fmt --manifest-path src-tauri/Cargo.toml",
+    "lint:rs": "cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings"
   },
   "dependencies": {
     "@milkdown/kit": "^7.22.3",
