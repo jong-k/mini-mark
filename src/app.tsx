@@ -9,6 +9,7 @@ import { createTaskQueue } from "./lib/task-queue";
 import {
   addRecentFile,
   confirmDiscard,
+  confirmOverwrite,
   confirmReload,
   fileModifiedAt,
   onDocumentAction,
@@ -60,13 +61,19 @@ export default function App() {
       const h = editor.current;
       if (!h) return;
       if (isDirtyRef.current && !(await confirmDiscard())) return;
+      // 읽기 뒤에 stat하면 그 사이 외부 수정의 mtime만 남아 변경을 놓친다. 먼저 stat하면 다음 폴링이 다시 불러온다.
+      const mtime = await fileModifiedAt(path).catch(() => null);
+      const changesBeforeRead = changeCount.current;
       const content = await readMarkdown(path);
+      // 읽는 동안 입력했으면 setValue가 그 입력을 덮어쓴다. 다시 묻는다.
+      if (changeCount.current !== changesBeforeRead && !(await confirmDiscard())) return;
       h.setFilePath(path);
       h.setValue(content);
       setFilePath(path);
       setIsDirty(false);
-      knownMtime.current = await fileModifiedAt(path).catch(() => null);
-      await addRecentFile(path);
+      knownMtime.current = mtime;
+      // 최근 목록은 부가 기능이다. 실패해도 열기는 성공했으므로 오류를 보이지 않는다.
+      await addRecentFile(path).catch(() => {});
     });
   }
 
@@ -83,6 +90,11 @@ export default function App() {
     return run(async () => {
       const h = editor.current;
       if (!h) return;
+      // 2초 폴링 사이에 생긴 외부 수정을 확인 없이 덮어쓰지 않는다.
+      if (path === filePath && knownMtime.current !== null) {
+        const current = await fileModifiedAt(path).catch(() => null);
+        if (current !== null && current !== knownMtime.current && !(await confirmOverwrite())) return;
+      }
       // getValue가 이 경로 기준으로 상대 경로 이미지를 직렬화한다. 먼저 불러야 한다.
       h.setFilePath(path);
       const source = h.getValue();
@@ -98,7 +110,7 @@ export default function App() {
       knownMtime.current = await fileModifiedAt(path).catch(() => null);
       setFilePath(path);
       if (h.getValue() === source) setIsDirty(false);
-      await addRecentFile(path);
+      await addRecentFile(path).catch(() => {});
     });
   }
 

@@ -74,6 +74,15 @@ export function confirmReload(): Promise<boolean> {
   });
 }
 
+export function confirmOverwrite(): Promise<boolean> {
+  return ask("디스크의 파일이 바뀌었습니다. 저장하면 다른 프로그램의 수정이 사라집니다.", {
+    title: "mini-mark",
+    kind: "warning",
+    okLabel: "덮어쓰기",
+    cancelLabel: "취소",
+  });
+}
+
 export async function showError(text: string): Promise<void> {
   await message(text, { title: "mini-mark", kind: "error" });
 }
