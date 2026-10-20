@@ -96,3 +96,7 @@ pnpm tauri build --target universal-apple-darwin
 ```
 
 코드 규칙 및 에이전트 지침은 [AGENTS.md](AGENTS.md)에, 설계와 진행 상황은 [docs/PLAN.md](docs/PLAN.md)에 정리되어 있습니다.
+
+## 라이선스
+
+[MIT](LICENSE)
