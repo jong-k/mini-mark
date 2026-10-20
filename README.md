@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="src-tauri/icons/128x128@2x.png" width="128" alt="Mini Mark 아이콘">
+</p>
+
 # Mini Mark
 
 Mini Mark는 마크다운 문서를 서식이 적용된 화면에서 바로 편집하는 macOS 앱입니다. 편집한 내용은 일반 `.md` 파일로 저장합니다.
