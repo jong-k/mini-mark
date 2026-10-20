@@ -59,7 +59,7 @@ export function pickSavePath(defaultPath?: string): Promise<string | null> {
 
 export function confirmDiscard(): Promise<boolean> {
   return ask("저장하지 않은 변경 사항이 있습니다. 버리시겠습니까?", {
-    title: "mini-mark",
+    title: "Mini Mark",
     kind: "warning",
     okLabel: "버리기",
     cancelLabel: "취소",
@@ -68,7 +68,7 @@ export function confirmDiscard(): Promise<boolean> {
 
 export function confirmReload(): Promise<boolean> {
   return ask("디스크의 파일이 바뀌었습니다. 다시 불러오면 편집 중인 내용이 사라집니다.", {
-    title: "mini-mark",
+    title: "Mini Mark",
     kind: "warning",
     okLabel: "다시 불러오기",
     cancelLabel: "유지",
@@ -77,7 +77,7 @@ export function confirmReload(): Promise<boolean> {
 
 export function confirmOverwrite(): Promise<boolean> {
   return ask("디스크의 파일이 바뀌었습니다. 저장하면 다른 프로그램의 수정이 사라집니다.", {
-    title: "mini-mark",
+    title: "Mini Mark",
     kind: "warning",
     okLabel: "덮어쓰기",
     cancelLabel: "취소",
@@ -85,7 +85,7 @@ export function confirmOverwrite(): Promise<boolean> {
 }
 
 export async function showError(text: string): Promise<void> {
-  await message(text, { title: "mini-mark", kind: "error" });
+  await message(text, { title: "Mini Mark", kind: "error" });
 }
 
 export function setWindowTitle(title: string): Promise<void> {

@@ -6,10 +6,10 @@ use crate::recent::{self, RecentFiles};
 /// 메뉴를 만들고 Open Recent 서브메뉴 핸들을 함께 돌려준다.
 pub fn build(app: &AppHandle) -> tauri::Result<(Menu<Wry>, Submenu<Wry>)> {
     // 기본 메뉴의 Quit은 terminate:를 직접 호출해 CloseRequested를 건너뛴다. 창 닫기로 우회시킨다.
-    let quit = MenuItemBuilder::with_id("quit", "Quit mini-mark")
+    let quit = MenuItemBuilder::with_id("quit", "Quit Mini Mark")
         .accelerator("CmdOrCtrl+Q")
         .build(app)?;
-    let app_menu = SubmenuBuilder::new(app, "mini-mark")
+    let app_menu = SubmenuBuilder::new(app, "Mini Mark")
         .about(None)
         .separator()
         .services()
