@@ -6,7 +6,7 @@ Goal: JS/TS에 Oxlint(type-aware 포함)와 oxfmt를 도입하고, Rust는 기�
 
 Architecture: 설정 파일은 루트의 `.oxlintrc.json`, `.oxfmtrc.json` 두 개다. 포맷은 oxfmt 기본값(printWidth 100)을 쓴다. 기존 코드가 폭 100 기준이라 diff가 가장 작다(13파일, 80으로 하면 18파일 650줄). Rust 쪽은 설정 파일 없이 스크립트 두 줄만 추가한다. 현재 `cargo fmt --check`와 `clippy -D warnings`가 모두 통과한다.
 
-Tech Stack: oxlint 1.89.0, oxlint-tsgolint 7.0.2004, oxfmt 0.74.0, pnpm, rustfmt, clippy
+Tech Stack: oxlint 1.88.0, oxlint-tsgolint 7.0.2004, oxfmt 0.73.0, pnpm, rustfmt, clippy (계획 당시 최신인 1.89.0, 0.74.0은 배포 하루가 안 돼 pnpm minimumReleaseAge에 걸려 한 버전 낮춤)
 
 Spec: 이 계획 자체가 스펙이다(2026-10-20 대화에서 Oxlint + oxfmt 선택).
 
@@ -24,7 +24,7 @@ Spec: 이 계획 자체가 스펙이다(2026-10-20 대화에서 Oxlint + oxfmt �
 - `editor.tsx`의 ref 동기화를 `useLayoutEffect`로 옮긴 뒤에도 입력 즉시 창 제목에 수정 표시가 붙어야 한다(`pnpm tauri dev`에서 타이핑으로 확인).
 - 일괄 포맷 뒤에도 동작이 같아야 한다. `pnpm build`(tsc 포함)와 `pnpm test`가 포맷 전과 같이 통과해야 한다.
 - `pnpm fmt`가 gitignore 대상(`dist`, `src-tauri/gen/schemas`, `src-tauri/target`)과 `pnpm-lock.yaml`을 건드리지 않아야 한다. 포맷 후 `git status`로 확인한다.
-- Markdown 포맷이 렌더 결과를 바꾸면 안 된다. 인라인 코드 안 백틱(phase3 계획서 32행의 ` ``` ` 가 ` ``` ` 로 바뀜)과 표가 포맷 전과 같게 보이는지 diff로 확인한다.
+- Markdown 포맷이 렌더 결과를 바꾸면 안 된다. 인라인 코드 안 백틱(phase3 계획서 32행에서 백틱 4개로 감싼 코드가 1개로 감싼 형태로 바뀜)과 표가 포맷 전과 같게 보이는지 diff로 확인한다.
 - `app.tsx` 마운트 이펙트는 의존성을 비운 채 유지해야 한다. 의존성을 채우면 매 렌더마다 리스너가 재등록된다. 린트 경고는 주석으로만 끈다.
 - type-aware 규칙이 실제로 돈다. floating promise를 일부러 넣으면 `pnpm lint`가 실패해야 한다(Task 1 Step 4).
 
@@ -46,7 +46,7 @@ Interfaces:
 
 - [ ] Step 1: 설치
 
-Run: `pnpm add -D -E oxlint@1.89.0 oxlint-tsgolint@7.0.2004`
+Run: `pnpm add -D -E oxlint@1.88.0 oxlint-tsgolint@7.0.2004`
 
 - [ ] Step 2: `.oxlintrc.json` 작성
 
@@ -116,7 +116,7 @@ Interfaces:
 
 - [ ] Step 1: 설치
 
-Run: `pnpm add -D -E oxfmt@0.74.0`
+Run: `pnpm add -D -E oxfmt@0.73.0`
 
 - [ ] Step 2: `.oxfmtrc.json` 작성
 
