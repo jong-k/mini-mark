@@ -55,10 +55,16 @@ pub fn rebuild_menu(menu: &Submenu<Wry>, app: &AppHandle, list: &[String]) -> ta
     Ok(())
 }
 
+/// 저장이 성공했을 때만 메모리 목록을 바꾼다. 실패하면 목록과 메뉴가 이전 상태로 일치한 채 남는다.
+pub fn commit(list: &mut Vec<String>, next: Vec<String>, store_path: &Path) -> Result<(), String> {
+    store(store_path, &next)?;
+    *list = next;
+    Ok(())
+}
+
 pub fn clear(app: &AppHandle, state: &RecentFiles) -> Result<(), String> {
     let mut list = state.list.lock().unwrap();
-    list.clear();
-    store(&state.store_path, &list)?;
+    commit(&mut list, Vec::new(), &state.store_path)?;
     rebuild_menu(&state.menu, app, &list).map_err(|e| e.to_string())
 }
 
@@ -73,8 +79,9 @@ pub fn add_recent_file(
     path: String,
 ) -> Result<(), String> {
     let mut list = state.list.lock().unwrap();
-    push_recent(&mut list, &path);
-    store(&state.store_path, &list)?;
+    let mut next = list.clone();
+    push_recent(&mut next, &path);
+    commit(&mut list, next, &state.store_path)?;
     rebuild_menu(&state.menu, &app, &list).map_err(|e| e.to_string())
 }
 
@@ -125,5 +132,32 @@ mod tests {
         let bad = dir.path().join("bad.json");
         std::fs::write(&bad, "{not json").unwrap();
         assert!(load(&bad).is_empty());
+    }
+
+    #[test]
+    fn commit_leaves_list_untouched_when_store_fails() {
+        let dir = tempfile::tempdir().unwrap();
+        let blocker = dir.path().join("file");
+        std::fs::write(&blocker, "x").unwrap();
+        let bad_path = blocker.join("recent-files.json"); // 부모가 일반 파일이라 쓸 수 없다
+        let mut list = vec!["/a.md".to_string(), "/b.md".to_string()];
+        let result = commit(&mut list, vec!["/c.md".to_string()], &bad_path);
+        assert!(result.is_err());
+        assert_eq!(list, vec!["/a.md", "/b.md"]);
+    }
+
+    #[test]
+    fn commit_replaces_list_after_store_succeeds() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("recent-files.json");
+        let mut list = vec!["/a.md".to_string()];
+        commit(
+            &mut list,
+            vec!["/c.md".to_string(), "/a.md".to_string()],
+            &path,
+        )
+        .unwrap();
+        assert_eq!(list, vec!["/c.md", "/a.md"]);
+        assert_eq!(load(&path), vec!["/c.md", "/a.md"]);
     }
 }
