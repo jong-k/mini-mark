@@ -83,11 +83,17 @@ Typora 스타일의 위지윅(WYSIWYM) 편집 경험과 빠른 실행 속도, �
 
 상세 태스크: [`superpowers/plans/2026-10-20-phase4-native-packaging.md`](superpowers/plans/2026-10-20-phase4-native-packaging.md)
 
-- [x] Finder 연동 (`fileAssociations` 설정으로 `.md` 파일 더블클릭 및 드래그 앤 드롭 시 앱으로 열기 처리)
+- [ ] Finder 연동 (`fileAssociations` 설정으로 `.md` 파일 더블클릭 및 드래그 앤 드롭 시 앱으로 열기 처리) → 구현 완료, 수동 확인 대기
 - [x] 외부 프로그램에 의한 현재 열린 파일 변경 감지(File Watcher) 및 리로드 알림 (2초 mtime 폴링)
 - [x] 최근 열었던 파일(Recent Files) 목록 관리 (File 메뉴 추가, 단축키는 메뉴 accelerator로 이동)
-- [x] 성능 프로파일링 (콜드 스타트 속도, 유휴 메모리 100MB 이내, 대용량 문서 타이핑 지연 확인)
-- [x] macOS `.app` 및 `.dmg` 프로덕션 빌드 테스트
+- [ ] 성능 프로파일링 (콜드 스타트 속도, 유휴 메모리 100MB 이내, 대용량 문서 타이핑 지연 확인) → 번들 크기와 빈 문서 메모리만 측정
+- [ ] macOS `.app` 및 `.dmg` 프로덕션 빌드 테스트 → 빌드와 Info.plist 확인 완료, 실행과 dmg 마운트 수동 확인 대기
+- 수동 확인 필요 (4단계, `superpowers/plans/2026-10-20-phase4-native-packaging.md` 기준)
+  - Task 1 Step 9: 디버그 번들로 Finder 열기 1~5번
+  - Task 2 Step 10: 외부 변경 감지 1~7번
+  - Task 3 Step 9: File 메뉴 1~7번. 특히 2번(`Cmd+S` 등이 한 번만 실행)은 중단 조건
+  - Task 4 Step 3~5: 콜드 스타트, 대용량 문서 메모리, 타이핑 지연
+  - Task 5 Step 3: `.dmg` 마운트, `/Applications` 실행, 더블클릭 열기
 - 측정 결과 (4단계, Apple Silicon, 릴리스 빌드)
   - 번들: `.app` 4.4MB(실행 파일 4.3MB), `.dmg` 2.2MB (목표 10MB 이하). JS 청크 816KB(gzip 254KB) 단일 파일
   - 콜드 스타트: 수동 측정 필요(비GUI 환경에서 창 생성 시점을 잡지 못함). 측정 스크립트는 4단계 계획 Task 4 Step 3
