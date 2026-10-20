@@ -7,6 +7,7 @@
 - 커밋 메시지 작성 시 docs/conventions/commit-convention.md 를 따른다.
 - 파일, 디렉터리 및 코드 식별자 작성 시 docs/conventions/naming-convention.md 를 따른다.
 - 화면 문구와 코드 용어 작성 시 docs/conventions/terminology.md 를 따른다.
+- 앱 동작 스펙은 docs/spec/ 에 기능별로 둔다. 해당 동작을 바꾸면 스펙 문서도 같은 커밋에서 고친다.
 
 ## 프론트엔드 구조
 
