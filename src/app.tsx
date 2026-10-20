@@ -5,6 +5,7 @@ import { deferred } from "./lib/deferred";
 import { blockFileDrop } from "./lib/file-drop";
 import { pollFileChange } from "./lib/file-watch";
 import { formatMarkdown } from "./lib/format-markdown";
+import { createTaskQueue } from "./lib/task-queue";
 import {
   addRecentFile,
   confirmDiscard,
@@ -29,6 +30,8 @@ export default function App() {
   const editor = useRef<EditorHandle>(null);
   // 외부 변경 감지 기준 mtime. null이면 감시하지 않는다(새 문서, 저장 진행 중).
   const knownMtime = useRef<number | null>(null);
+  // 입력마다 증가. 폴링이 읽는 동안 입력이 있었는지 pollFileChange가 비교한다.
+  const changeCount = useRef(0);
 
   async function run(action: () => Promise<void>) {
     try {
@@ -51,7 +54,7 @@ export default function App() {
     });
   }
 
-  // 가드를 잡지 않는다. 진입점(메뉴, Finder 열기, 폴링)이 guarded로 한 번만 감싼다.
+  // 큐에 넣지 않는다. 진입점(메뉴, Finder 열기, 폴링)이 queue.enqueue로 한 번만 감싼다.
   function openPath(path: string) {
     return run(async () => {
       const h = editor.current;
@@ -120,7 +123,6 @@ export default function App() {
   const actions = useRef({ new: newDocument, open: openDocument, save, saveAs });
   actions.current = { new: newDocument, open: openDocument, save, saveAs };
 
-  const busy = useRef(false);
   const isDirtyRef = useRef(isDirty);
   isDirtyRef.current = isDirty;
   const filePathRef = useRef(filePath);
@@ -135,6 +137,7 @@ export default function App() {
       known: knownMtime.current,
       currentPath: () => filePathRef.current,
       isDirty: () => isDirtyRef.current,
+      changeCount: () => changeCount.current,
       modifiedAt: (p) => fileModifiedAt(p).catch(() => null),
       confirmReload,
       read: readMarkdown,
@@ -154,32 +157,23 @@ export default function App() {
   const tickRef = useRef(tick);
   tickRef.current = tick;
 
-  // 저장 중 Cmd+N/Cmd+O가 끼어들면 새 문서가 이전 경로에 묶인다. 진행 중인 동작이 끝날 때까지 다른 진입을 무시한다.
-  // 이벤트 진입점에서만 부른다. 문서 함수 안에서 중첩하면 안쪽 호출이 무시된다.
-  async function guarded(fn: () => Promise<void>) {
-    if (busy.current) return;
-    busy.current = true;
-    try {
-      await fn();
-    } finally {
-      busy.current = false;
-    }
-  }
-  const guardedRef = useRef(guarded);
-  guardedRef.current = guarded;
+  // 문서 동작은 큐로 직렬화한다. 저장 중 들어온 Cmd+N/Cmd+O나 Finder 열기는 버리지 않고 앞 동작이 끝난 뒤 실행한다.
+  const [queue] = useState(createTaskQueue);
 
   // useRef(new Promise(...))는 렌더마다 executor가 돌아 resolver가 버려지는 Promise로 바뀐다. 지연 초기화로 한 번만 만든다.
   const [editorReady] = useState(deferred<void>);
 
   useEffect(() => {
-    const listening = onOpenFileRequested((p) => void guardedRef.current(() => openPath(p)));
+    const listening = onOpenFileRequested((p) => void queue.enqueue(() => openPath(p)));
     // 리스너와 에디터가 모두 준비된 뒤 가져온다. take가 Rust의 ready를 세워 이후 요청은 이벤트로만 온다.
     void Promise.all([listening, editorReady.promise]).then(async () => {
       const p = await takeOpenedFile().catch(() => null);
-      if (p !== null) await guardedRef.current(() => openPath(p));
+      if (p !== null) await queue.enqueue(() => openPath(p));
     });
-    // guarded가 busy를 잡으므로 틱 동안 메뉴와 Finder 열기는 무시되고, 문서 동작 중에는 틱이 건너뛴다.
-    const interval = setInterval(() => void guardedRef.current(() => tickRef.current()), 2000);
+    // 틱은 큐가 비었을 때만 들어간다. 문서 동작 중에는 건너뛰고, 틱 중 들어온 사용자 요청은 큐에서 기다린다.
+    const interval = setInterval(() => {
+      if (queue.idle()) void queue.enqueue(() => tickRef.current());
+    }, 2000);
     return () => {
       clearInterval(interval);
       void listening.then((fn) => fn());
@@ -198,7 +192,7 @@ export default function App() {
 
   useEffect(() => {
     // 단축키는 File 메뉴 accelerator가 받아 이 이벤트로 온다.
-    const listening = onDocumentAction((a) => void guardedRef.current(() => actions.current[a]()));
+    const listening = onDocumentAction((a) => void queue.enqueue(() => actions.current[a]()));
     window.addEventListener("dragover", blockFileDrop);
     window.addEventListener("drop", blockFileDrop);
     return () => {
@@ -211,7 +205,10 @@ export default function App() {
   return (
     <Editor
       handleRef={editor}
-      onChange={() => setIsDirty(true)}
+      onChange={() => {
+        changeCount.current++;
+        setIsDirty(true);
+      }}
       onReady={() => editorReady.resolve()}
     />
   );
