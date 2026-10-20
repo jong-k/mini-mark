@@ -163,6 +163,24 @@ it.each([
   expect(handle.getValue()).toBe(expected);
 });
 
+it.each([
+  ["문단에서 `# `", "a\n", "#", "# a\n"],
+  ["h1에서 `## `는 h2", "# a\n", "##", "## a\n"],
+  ["h2에서 `# `는 h1", "## a\n", "#", "# a\n"],
+  ["h1에서 `# `는 h1 유지", "# a\n", "#", "# a\n"],
+])("heading input rule uses the typed hash count as the level: %s", async (_name, doc, hashes, expected) => {
+  const { handle, editor } = await setup();
+  handle.setValue(doc);
+  editor.action((ctx) => {
+    const view = ctx.get(editorViewCtx);
+    view.dispatch(view.state.tr.insertText(hashes, 1));
+    const pos = 1 + hashes.length;
+    // 입력 규칙은 handleTextInput으로만 동작한다. 공백 입력을 흉내 낸다.
+    view.someProp("handleTextInput", (f) => f(view, pos, pos, " ", () => view.state.tr));
+  });
+  expect(handle.getValue()).toBe(expected);
+});
+
 it("preserves code fence meta", async () => {
   const { handle } = await setup();
   const doc = "```js title=example {1,3}\nconst a = 1;\n```\n";

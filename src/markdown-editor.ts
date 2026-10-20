@@ -2,12 +2,25 @@ import { Editor, editorViewCtx, remarkStringifyOptionsCtx, rootCtx, schemaCtx } 
 import type { Ctx } from "@milkdown/kit/ctx";
 import { history } from "@milkdown/kit/plugin/history";
 import { upload, uploadConfig } from "@milkdown/kit/plugin/upload";
-import { codeBlockSchema, commonmark, headingKeymap, imageSchema } from "@milkdown/kit/preset/commonmark";
+import {
+  codeBlockSchema,
+  commonmark,
+  headingKeymap,
+  headingSchema,
+  imageSchema,
+  wrapInHeadingInputRule,
+} from "@milkdown/kit/preset/commonmark";
 import { gfm } from "@milkdown/kit/preset/gfm";
+import { textblockTypeInputRule } from "@milkdown/kit/prose/inputrules";
 import type { Node } from "@milkdown/kit/prose/model";
 import { Plugin, PluginKey } from "@milkdown/kit/prose/state";
 import { Decoration, DecorationSet, type EditorView } from "@milkdown/kit/prose/view";
-import { $ctx, $prose, getMarkdown, replaceAll } from "@milkdown/kit/utils";
+import { $ctx, $inputRule, $prose, getMarkdown, replaceAll } from "@milkdown/kit/utils";
+
+// 기본 규칙은 제목 안에서 `# `를 입력하면 기존 레벨에 더한다(h1에서 `# `면 h2). 마크다운처럼 입력한 # 개수를 레벨로 쓴다.
+const headingInputRule = $inputRule((ctx) =>
+  textblockTypeInputRule(/^(#{1,6})\s$/, headingSchema.type(ctx), (match) => ({ level: match[1]!.length })),
+);
 import { prism } from "@milkdown/plugin-prism";
 import type { EditorHandle } from "./editor";
 import { assetFileName, imageFilePath, relativeImageSrc } from "./lib/image-asset";
@@ -167,7 +180,8 @@ export function createMarkdownEditor(root: HTMLElement, onChange: () => void): P
         uploader: (files, _schema, ctx) => uploadImages(files, ctx),
       }));
     })
-    .use(commonmark)
+    .use(commonmark.filter((plugin) => plugin !== wrapInHeadingInputRule))
+    .use(headingInputRule)
     .use(codeBlockWithMeta)
     .use(imageWithRelocatedSrc)
     .use(gfm)
