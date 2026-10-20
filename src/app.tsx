@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import "./app.css";
 import { Editor, type EditorHandle } from "./editor";
 import { deferred } from "./lib/deferred";
+import { canOverwrite, readDocument } from "./lib/document-file";
 import { blockFileDrop } from "./lib/file-drop";
 import { pollFileChange } from "./lib/file-watch";
 import { formatMarkdown } from "./lib/format-markdown";
@@ -25,14 +26,32 @@ import {
 } from "./lib/tauri";
 import { windowTitle } from "./lib/window-title";
 
+interface DocumentMeta {
+  filePath: string | null;
+  isDirty: boolean;
+  /** 외부 변경 감지 기준 mtime. null이면 감시하지 않는다(새 문서). */
+  knownMtime: number | null;
+}
+
+const statOrNull = (path: string) => fileModifiedAt(path).catch(() => null);
+
 export default function App() {
-  const [filePath, setFilePath] = useState<string | null>(null);
-  const [isDirty, setIsDirty] = useState(false);
   const editor = useRef<EditorHandle>(null);
-  // 외부 변경 감지 기준 mtime. null이면 감시하지 않는다(새 문서, 저장 진행 중).
-  const knownMtime = useRef<number | null>(null);
-  // 입력마다 증가. 폴링이 읽는 동안 입력이 있었는지 pollFileChange가 비교한다.
+  // 문서 메타데이터는 React 상태가 아니라 ref 하나에 둔다. 렌더가 없으니 모든 함수가 항상 최신값을 읽고, 바뀌면 창 제목만 갱신한다.
+  const doc = useRef<DocumentMeta>({ filePath: null, isDirty: false, knownMtime: null });
+  // 입력마다 증가. 읽는 동안 입력이 있었는지 readDocument와 pollFileChange가 비교한다.
   const changeCount = useRef(0);
+  // 문서 동작은 큐로 직렬화한다. 저장 중 들어온 Cmd+N/Cmd+O나 Finder 열기는 버리지 않고 앞 동작이 끝난 뒤 실행한다.
+  const [queue] = useState(createTaskQueue);
+  // useRef(new Promise(...))는 렌더마다 executor가 돌아 resolver가 버려지는 Promise로 바뀐다. 지연 초기화로 한 번만 만든다.
+  const [editorReady] = useState(deferred<void>);
+
+  function update(patch: Partial<DocumentMeta>) {
+    const before = windowTitle(doc.current.filePath, doc.current.isDirty);
+    Object.assign(doc.current, patch);
+    const after = windowTitle(doc.current.filePath, doc.current.isDirty);
+    if (after !== before) void setWindowTitle(after);
+  }
 
   async function run(action: () => Promise<void>) {
     try {
@@ -42,36 +61,38 @@ export default function App() {
     }
   }
 
+  // 에디터 생성 전에 들어온 동작은 버리지 않고 기다린다.
+  async function waitEditor(): Promise<EditorHandle> {
+    await editorReady.promise;
+    return editor.current!;
+  }
+
   function newDocument() {
     return run(async () => {
-      const h = editor.current;
-      if (!h) return;
-      if (isDirty && !(await confirmDiscard())) return;
+      const h = await waitEditor();
+      if (doc.current.isDirty && !(await confirmDiscard())) return;
       h.setFilePath(null);
       h.setValue("");
-      setFilePath(null);
-      setIsDirty(false);
-      knownMtime.current = null;
+      update({ filePath: null, isDirty: false, knownMtime: null });
     });
   }
 
   // 큐에 넣지 않는다. 진입점(메뉴, Finder 열기, 폴링)이 queue.enqueue로 한 번만 감싼다.
   function openPath(path: string) {
     return run(async () => {
-      const h = editor.current;
-      if (!h) return;
-      if (isDirtyRef.current && !(await confirmDiscard())) return;
-      // 읽기 뒤에 stat하면 그 사이 외부 수정의 mtime만 남아 변경을 놓친다. 먼저 stat하면 다음 폴링이 다시 불러온다.
-      const mtime = await fileModifiedAt(path).catch(() => null);
-      const changesBeforeRead = changeCount.current;
-      const content = await readMarkdown(path);
-      // 읽는 동안 입력했으면 setValue가 그 입력을 덮어쓴다. 다시 묻는다.
-      if (changeCount.current !== changesBeforeRead && !(await confirmDiscard())) return;
+      const h = await waitEditor();
+      const result = await readDocument({
+        path,
+        isDirty: () => doc.current.isDirty,
+        changeCount: () => changeCount.current,
+        confirmDiscard,
+        modifiedAt: statOrNull,
+        read: readMarkdown,
+      });
+      if (result.type === "cancel") return;
       h.setFilePath(path);
-      h.setValue(content);
-      setFilePath(path);
-      setIsDirty(false);
-      knownMtime.current = mtime;
+      h.setValue(result.content);
+      update({ filePath: path, isDirty: false, knownMtime: result.mtime });
       // 최근 목록은 부가 기능이다. 실패해도 열기는 성공했으므로 오류를 보이지 않는다.
       await addRecentFile(path).catch(() => {});
     });
@@ -88,34 +109,33 @@ export default function App() {
 
   function saveDocument(path: string) {
     return run(async () => {
-      const h = editor.current;
-      if (!h) return;
-      // 2초 폴링 사이에 생긴 외부 수정을 확인 없이 덮어쓰지 않는다.
-      if (path === filePath && knownMtime.current !== null) {
-        const current = await fileModifiedAt(path).catch(() => null);
-        if (current !== null && current !== knownMtime.current && !(await confirmOverwrite())) return;
+      const h = await waitEditor();
+      const { filePath, knownMtime } = doc.current;
+      // 다른 경로로 저장하면 네이티브 대화상자가 이미 덮어쓰기를 물었다.
+      if (
+        path === filePath &&
+        !(await canOverwrite({ known: knownMtime, modifiedAt: () => statOrNull(path), confirmOverwrite }))
+      ) {
+        return;
       }
-      // getValue가 이 경로 기준으로 상대 경로 이미지를 직렬화한다. 먼저 불러야 한다.
+      // getValue가 이 경로 기준으로 상대 경로를 직렬화한다. 먼저 불러야 한다.
       h.setFilePath(path);
       const source = h.getValue();
-      // 저장 중 폴링이 자기 저장을 외부 변경으로 오인하지 않도록 감시를 멈춘다.
-      knownMtime.current = null;
+      let mtime: number;
       try {
-        await saveMarkdownAtomic(path, formatMarkdown(source));
+        mtime = await saveMarkdownAtomic(path, formatMarkdown(source));
       } catch (err) {
         h.setFilePath(filePath);
-        knownMtime.current = filePath === null ? null : await fileModifiedAt(filePath).catch(() => null);
         throw err;
       }
-      knownMtime.current = await fileModifiedAt(path).catch(() => null);
-      setFilePath(path);
-      if (h.getValue() === source) setIsDirty(false);
+      // 저장 중 입력했으면 더티를 유지한다.
+      update({ filePath: path, knownMtime: mtime, isDirty: h.getValue() !== source });
       await addRecentFile(path).catch(() => {});
     });
   }
 
   async function saveAs() {
-    const path = await pickSavePath(filePath ?? "Untitled.md").catch(async (err) => {
+    const path = await pickSavePath(doc.current.filePath ?? "Untitled.md").catch(async (err) => {
       await showError(String(err));
       return null;
     });
@@ -124,91 +144,61 @@ export default function App() {
   }
 
   async function save() {
+    const { filePath } = doc.current;
     if (filePath) await saveDocument(filePath);
     else await saveAs();
   }
 
-  useEffect(() => {
-    setWindowTitle(windowTitle(filePath, isDirty));
-  }, [filePath, isDirty]);
-
-  const actions = useRef({ new: newDocument, open: openDocument, save, saveAs });
-  actions.current = { new: newDocument, open: openDocument, save, saveAs };
-
-  const isDirtyRef = useRef(isDirty);
-  isDirtyRef.current = isDirty;
-  const filePathRef = useRef(filePath);
-  filePathRef.current = filePath;
-
   async function tick() {
-    const path = filePathRef.current;
+    const { filePath, knownMtime } = doc.current;
     const h = editor.current;
-    if (path === null || h === null) return;
+    if (filePath === null || h === null) return;
     const result = await pollFileChange({
-      path,
-      known: knownMtime.current,
-      currentPath: () => filePathRef.current,
-      isDirty: () => isDirtyRef.current,
+      path: filePath,
+      known: knownMtime,
+      currentPath: () => doc.current.filePath,
+      isDirty: () => doc.current.isDirty,
       changeCount: () => changeCount.current,
-      modifiedAt: (p) => fileModifiedAt(p).catch(() => null),
+      modifiedAt: statOrNull,
       confirmReload,
       read: readMarkdown,
     }).catch(async (err) => {
       // 실패를 소비하지 않으면 2초마다 같은 오류가 뜬다. 한 번 보이고 다음 외부 변경에서 다시 시도한다.
       await showError(String(err));
-      const current = await fileModifiedAt(path).catch(() => null);
+      const current = await statOrNull(filePath);
       return current === null ? { type: "none" as const } : { type: "keep" as const, known: current };
     });
     if (result.type === "none") return;
-    knownMtime.current = result.known;
-    if (result.type === "reload") {
-      h.setValue(result.content);
-      setIsDirty(false);
-    }
+    update({ knownMtime: result.known });
+    if (result.type !== "reload") return;
+    // 내용이 같으면(git checkout, 포매터 재저장, touch) 본문을 바꾸지 않아 undo 기록과 커서를 지킨다.
+    if (formatMarkdown(result.content) !== formatMarkdown(h.getValue())) h.setValue(result.content);
+    update({ isDirty: false });
   }
-  const tickRef = useRef(tick);
-  tickRef.current = tick;
 
-  // 문서 동작은 큐로 직렬화한다. 저장 중 들어온 Cmd+N/Cmd+O나 Finder 열기는 버리지 않고 앞 동작이 끝난 뒤 실행한다.
-  const [queue] = useState(createTaskQueue);
-
-  // useRef(new Promise(...))는 렌더마다 executor가 돌아 resolver가 버려지는 Promise로 바뀐다. 지연 초기화로 한 번만 만든다.
-  const [editorReady] = useState(deferred<void>);
+  const actions = { new: newDocument, open: openDocument, save, saveAs };
 
   useEffect(() => {
-    const listening = onOpenFileRequested((p) => void queue.enqueue(() => openPath(p)));
+    void setWindowTitle(windowTitle(null, false));
+    const opening = onOpenFileRequested((p) => void queue.enqueue(() => openPath(p)));
     // 리스너와 에디터가 모두 준비된 뒤 가져온다. take가 Rust의 ready를 세워 이후 요청은 이벤트로만 온다.
-    void Promise.all([listening, editorReady.promise]).then(async () => {
+    void Promise.all([opening, editorReady.promise]).then(async () => {
       const p = await takeOpenedFile().catch(() => null);
       if (p !== null) await queue.enqueue(() => openPath(p));
     });
+    // 단축키는 File 메뉴 accelerator가 받아 이 이벤트로 온다.
+    const acting = onDocumentAction((a) => void queue.enqueue(() => actions[a]()));
+    // ponytail: 버리기/취소 2버튼. 저장/버리기/취소 3버튼이 필요하면 커스텀 모달로 교체.
+    const closing = onWindowCloseRequested(async () => !doc.current.isDirty || (await confirmDiscard()));
     // 틱은 큐가 비었을 때만 들어간다. 문서 동작 중에는 건너뛰고, 틱 중 들어온 사용자 요청은 큐에서 기다린다.
     const interval = setInterval(() => {
-      if (queue.idle()) void queue.enqueue(() => tickRef.current());
+      if (queue.idle()) void queue.enqueue(tick);
     }, 2000);
-    return () => {
-      clearInterval(interval);
-      void listening.then((fn) => fn());
-    };
-  }, []);
-
-  useEffect(() => {
-    // ponytail: 버리기/취소 2버튼. 저장/버리기/취소 3버튼이 필요하면 커스텀 모달로 교체.
-    const unlisten = onWindowCloseRequested(
-      async () => !isDirtyRef.current || (await confirmDiscard()),
-    );
-    return () => {
-      void unlisten.then((fn) => fn());
-    };
-  }, []);
-
-  useEffect(() => {
-    // 단축키는 File 메뉴 accelerator가 받아 이 이벤트로 온다.
-    const listening = onDocumentAction((a) => void queue.enqueue(() => actions.current[a]()));
     window.addEventListener("dragover", blockFileDrop);
     window.addEventListener("drop", blockFileDrop);
     return () => {
-      void listening.then((fn) => fn());
+      clearInterval(interval);
+      for (const listening of [opening, acting, closing]) void listening.then((fn) => fn());
       window.removeEventListener("dragover", blockFileDrop);
       window.removeEventListener("drop", blockFileDrop);
     };
@@ -219,7 +209,7 @@ export default function App() {
       handleRef={editor}
       onChange={() => {
         changeCount.current++;
-        setIsDirty(true);
+        update({ isDirty: true });
       }}
       onReady={() => editorReady.resolve()}
     />
