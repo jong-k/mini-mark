@@ -3,6 +3,7 @@ import { editorViewCtx, schemaCtx, type Editor } from "@milkdown/kit/core";
 import { uploadConfig } from "@milkdown/kit/plugin/upload";
 import type { Node } from "@milkdown/kit/prose/model";
 import { undo } from "@milkdown/kit/prose/history";
+import { TextSelection } from "@milkdown/kit/prose/state";
 import { afterEach, expect, it, vi } from "vitest";
 import { formatMarkdown } from "./lib/format-markdown";
 import { saveAsset, showError } from "./lib/tauri";
@@ -143,6 +144,23 @@ it("normalizes CRLF front matter to LF like the body", async () => {
   const { handle } = await setup();
   handle.setValue("---\r\ntitle: x\r\n---\r\n\r\n# 본문\r\n");
   expect(handle.getValue()).toBe("---\ntitle: x\n---\n\n# 본문\n");
+});
+
+it.each([
+  ["제목에 내용 있음", "a\n\n## b\n", "ab\n"],
+  ["빈 제목", "a\n\n####\n", "a\n"],
+])("backspace at the start of a heading joins the previous line: %s", async (_name, doc, expected) => {
+  const { handle, editor } = await setup();
+  handle.setValue(doc);
+  editor.action((ctx) => {
+    const view = ctx.get(editorViewCtx);
+    // doc(0) > paragraph("a")는 0..3, heading 내용은 4부터
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, 4)));
+    view.dom.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Backspace", keyCode: 8, bubbles: true, cancelable: true }),
+    );
+  });
+  expect(handle.getValue()).toBe(expected);
 });
 
 it("preserves code fence meta", async () => {

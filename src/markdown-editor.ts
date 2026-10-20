@@ -2,7 +2,7 @@ import { Editor, editorViewCtx, remarkStringifyOptionsCtx, rootCtx, schemaCtx } 
 import type { Ctx } from "@milkdown/kit/ctx";
 import { history } from "@milkdown/kit/plugin/history";
 import { upload, uploadConfig } from "@milkdown/kit/plugin/upload";
-import { codeBlockSchema, commonmark, imageSchema } from "@milkdown/kit/preset/commonmark";
+import { codeBlockSchema, commonmark, headingKeymap, imageSchema } from "@milkdown/kit/preset/commonmark";
 import { gfm } from "@milkdown/kit/preset/gfm";
 import type { Node } from "@milkdown/kit/prose/model";
 import { Plugin, PluginKey } from "@milkdown/kit/prose/state";
@@ -160,6 +160,8 @@ export function createMarkdownEditor(root: HTMLElement, onChange: () => void): P
     .config((ctx) => {
       ctx.set(rootCtx, root);
       ctx.update(remarkStringifyOptionsCtx, (o) => ({ ...o, bullet: "-" as const }));
+      // 기본값은 제목 맨 앞 Backspace가 레벨을 하나씩 낮춘다(h4면 4번 눌러야 앞 줄로 간다). 끄면 ProseMirror 기본 동작으로 바로 앞 줄과 합쳐진다.
+      ctx.update(headingKeymap.key, (k) => ({ ...k, DowngradeHeading: { shortcuts: [] } }));
       ctx.update(uploadConfig.key, (prev) => ({
         ...prev,
         uploader: (files, _schema, ctx) => uploadImages(files, ctx),
