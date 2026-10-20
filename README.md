@@ -6,6 +6,11 @@
 
 Mini Mark는 마크다운 문서를 서식이 적용된 화면에서 바로 편집하는 macOS 앱입니다. 편집한 내용은 일반 `.md` 파일로 저장합니다.
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/screenshot-dark.png">
+  <img src="docs/images/screenshot-light.png" alt="Mini Mark에서 마크다운 문서를 편집하는 화면">
+</picture>
+
 화면은 macOS 기본 웹뷰(WKWebView)로 그리며, Chromium은 포함하지 않습니다. 설치 파일(`.dmg`)은 약 6MB이고, 빈 문서를 열어 둔 상태의 메모리 사용량은 약 63MB입니다(Apple Silicon에서 측정).
 
 ## 기능
