@@ -81,6 +81,8 @@ Typora 스타일의 위지윅(WYSIWYM) 편집 경험과 빠른 실행 속도, �
 ### 4단계: macOS 네이티브 통합 및 패키징
 실제 데스크탑 앱으로서의 사용성을 완성하고 배포용 번들을 생성한다.
 
+상세 태스크: [`superpowers/plans/2026-10-20-phase4-native-packaging.md`](superpowers/plans/2026-10-20-phase4-native-packaging.md)
+
 - [ ] Finder 연동 (`fileAssociations` 설정으로 `.md` 파일 더블클릭 및 드래그 앤 드롭 시 앱으로 열기 처리)
 - [ ] 외부 프로그램에 의한 현재 열린 파일 변경 감지(File Watcher) 및 리로드 알림
 - [ ] 최근 열었던 파일(Recent Files) 목록 관리
