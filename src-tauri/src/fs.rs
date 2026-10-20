@@ -77,6 +77,17 @@ pub fn save_asset(dir: String, file_name: String, data: Vec<u8>) -> Result<Strin
     Err(format!("too many assets named {file_name}"))
 }
 
+#[tauri::command]
+pub fn file_modified_at(path: String) -> Result<u64, String> {
+    let modified = fs::metadata(path)
+        .and_then(|m| m.modified())
+        .map_err(|e| e.to_string())?;
+    let since_epoch = modified
+        .duration_since(UNIX_EPOCH)
+        .map_err(|e| e.to_string())?;
+    Ok(since_epoch.as_millis() as u64)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -178,5 +189,25 @@ mod tests {
         assert!(save_asset(d.clone(), "../x.png".into(), vec![1]).is_err());
         assert!(save_asset(d.clone(), ".hidden".into(), vec![1]).is_err());
         assert!(save_asset(d, "".into(), vec![1]).is_err());
+    }
+
+    #[test]
+    fn file_modified_at_returns_mtime_millis() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path().join("a.md");
+        fs::write(&p, "x").unwrap();
+        let f = fs::OpenOptions::new().write(true).open(&p).unwrap();
+        f.set_modified(UNIX_EPOCH + std::time::Duration::from_secs(1_000_000))
+            .unwrap();
+        assert_eq!(
+            file_modified_at(p.to_string_lossy().into()).unwrap(),
+            1_000_000_000
+        );
+    }
+
+    #[test]
+    fn file_modified_at_is_err_for_missing_file() {
+        let dir = tempfile::tempdir().unwrap();
+        assert!(file_modified_at(dir.path().join("none.md").to_string_lossy().into()).is_err());
     }
 }

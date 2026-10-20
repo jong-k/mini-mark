@@ -94,6 +94,7 @@ pub fn run() {
             fs::read_markdown,
             fs::save_markdown_atomic,
             fs::save_asset,
+            fs::file_modified_at,
             take_opened_file
         ])
         .build(tauri::generate_context!())

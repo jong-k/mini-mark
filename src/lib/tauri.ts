@@ -22,6 +22,10 @@ export function assetUrl(path: string): string {
   return convertFileSrc(path);
 }
 
+export function fileModifiedAt(path: string): Promise<number> {
+  return invoke<number>("file_modified_at", { path });
+}
+
 /** 콜드 스타트 때 Finder가 넘긴 파일 경로. 한 번 부르면 이후 요청은 `onOpenFileRequested`로만 온다. */
 export function takeOpenedFile(): Promise<string | null> {
   return invoke<string | null>("take_opened_file");
@@ -45,6 +49,15 @@ export function confirmDiscard(): Promise<boolean> {
     kind: "warning",
     okLabel: "버리기",
     cancelLabel: "취소",
+  });
+}
+
+export function confirmReload(): Promise<boolean> {
+  return ask("디스크의 파일이 바뀌었습니다. 다시 불러오면 편집 중인 내용이 사라집니다.", {
+    title: "mini-mark",
+    kind: "warning",
+    okLabel: "다시 불러오기",
+    cancelLabel: "유지",
   });
 }
 
