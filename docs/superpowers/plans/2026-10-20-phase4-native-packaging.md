@@ -359,7 +359,7 @@ Expected: FAIL. 모듈 없음.
 
 - [ ] **Step 7: `nextWatchAction`과 `pollFileChange` 구현**
 
-`src/lib/file-watch.ts`에 시그니처대로 구현한다. `pollFileChange`의 `"ask"` 경로는 사용자가 이미 버리기를 확인했으므로 읽은 뒤 `isDirty()`는 다시 보지 않고 `currentPath()`만 확인한다(대화상자가 모달이라 그 사이 입력은 없다). 파일 상단 주석: `// ponytail: 2초 mtime 폴링. 지연이 문제되면 notify 크레이트로 교체.`
+`src/lib/file-watch.ts`에 시그니처대로 구현한다. 대화상자가 닫힌 뒤 읽기가 끝나기 전에도 입력이 들어올 수 있으므로, `"ask"` 경로를 포함해 읽기 직전 `changeCount()`를 기록하고 읽은 뒤 달라졌으면 `none`을 돌려준다(deps에 `changeCount: () => number` 포함). 파일 상단 주석: `// ponytail: 2초 mtime 폴링. 지연이 문제되면 notify 크레이트로 교체.`
 
 - [ ] **Step 8: `tauri.ts` 래퍼와 `app.tsx` 폴링**
 

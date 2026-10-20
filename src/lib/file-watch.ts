@@ -16,6 +16,8 @@ export interface FileWatchDeps {
   known: number | null;
   currentPath: () => string | null;
   isDirty: () => boolean;
+  /** 사용자 입력마다 증가. 읽는 동안 바뀌었으면 결과를 버린다. */
+  changeCount: () => number;
   modifiedAt: (path: string) => Promise<number | null>;
   confirmReload: () => Promise<boolean>;
   read: (path: string) => Promise<string>;
@@ -27,18 +29,18 @@ export type FileWatchResult =
   | { type: "reload"; known: number; content: string };
 
 /**
- * 폴링 한 회. 읽는 동안 문서가 바뀌거나(clean 경로에서) 입력이 생기면 결과를 버리고 기준값도 그대로 둔다.
+ * 폴링 한 회. 읽는 동안 문서가 바뀌거나 입력이 생기면 결과를 버리고 기준값도 그대로 둔다.
+ * 다시 불러오기를 확인한 뒤에도 대화상자가 닫히고 읽기가 끝나기 전까지 입력이 들어올 수 있다.
  * `read` 에러는 전파한다. 호출자가 표시하고 기준값을 소비한다.
  */
 export async function pollFileChange(deps: FileWatchDeps): Promise<FileWatchResult> {
   const current = await deps.modifiedAt(deps.path);
   const action = nextWatchAction(deps.known, current, deps.isDirty());
   if (action === "none" || current === null) return { type: "none" };
-  // "ask"에서 버리기를 확인하면 사용자가 이미 입력 포기를 선택했으므로 읽은 뒤 isDirty는 다시 보지 않는다.
-  const confirmed = action === "ask";
-  if (confirmed && !(await deps.confirmReload())) return { type: "keep", known: current };
+  if (action === "ask" && !(await deps.confirmReload())) return { type: "keep", known: current };
+  const changesBeforeRead = deps.changeCount();
   const content = await deps.read(deps.path);
   if (deps.currentPath() !== deps.path) return { type: "none" };
-  if (!confirmed && deps.isDirty()) return { type: "none" };
+  if (deps.changeCount() !== changesBeforeRead) return { type: "none" };
   return { type: "reload", known: current, content };
 }

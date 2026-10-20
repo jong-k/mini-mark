@@ -24,6 +24,7 @@ function deps(over: Partial<FileWatchDeps>): FileWatchDeps {
     known: 10,
     currentPath: () => "/a.md",
     isDirty: () => false,
+    changeCount: () => 0,
     modifiedAt: async () => 20,
     confirmReload: async () => true,
     read: async () => "new",
@@ -52,12 +53,29 @@ it("discards the read when the document changed meanwhile", async () => {
 });
 
 it("discards the read when the user typed meanwhile", async () => {
-  let dirty = false;
+  let count = 0;
   const read = async () => {
-    dirty = true;
+    count++;
     return "new";
   };
-  await expect(pollFileChange(deps({ isDirty: () => dirty, read }))).resolves.toEqual({ type: "none" });
+  await expect(pollFileChange(deps({ changeCount: () => count, read }))).resolves.toEqual({ type: "none" });
+});
+
+it("discards the read when the user typed after confirming the reload", async () => {
+  let count = 3;
+  const read = async () => {
+    count++; // 대화상자가 닫힌 뒤 읽기가 끝나기 전에 입력했다
+    return "new";
+  };
+  const result = await pollFileChange(
+    deps({ isDirty: () => true, confirmReload: async () => true, changeCount: () => count, read }),
+  );
+  expect(result).toEqual({ type: "none" });
+});
+
+it("reloads after confirming when nothing was typed during the read", async () => {
+  const result = await pollFileChange(deps({ isDirty: () => true, changeCount: () => 3 }));
+  expect(result).toEqual({ type: "reload", known: 20, content: "new" });
 });
 
 it("propagates read errors without touching the baseline", async () => {
