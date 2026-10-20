@@ -88,3 +88,8 @@ Typora 스타일의 위지윅(WYSIWYM) 편집 경험과 빠른 실행 속도, �
 - [ ] 최근 열었던 파일(Recent Files) 목록 관리
 - [ ] 성능 프로파일링 (콜드 스타트 속도, 유휴 메모리 100MB 이내, 대용량 문서 타이핑 지연 확인)
 - [ ] macOS `.app` 및 `.dmg` 프로덕션 빌드 테스트
+- 측정 결과 (4단계, Apple Silicon, 릴리스 빌드)
+  - 번들: `.app` 4.4MB(실행 파일 4.3MB), `.dmg` 2.2MB (목표 10MB 이하). JS 청크 816KB(gzip 254KB) 단일 파일
+  - 콜드 스타트: 수동 측정 필요(비GUI 환경에서 창 생성 시점을 잡지 못함). 측정 스크립트는 4단계 계획 Task 4 Step 3
+  - 유휴 메모리(빈 문서, 15초 대기, physical footprint): 메인 29.8MB + Web Content 33.5MB = 약 63MB (목표 100MB 이내). 대용량 문서(2.1MB, 10000절)는 수동 측정 필요
+  - 타이핑 지연: 수동 측정 필요(Web Inspector 타임라인). 테스트 문서 `/tmp/mini-mark-large.md`
