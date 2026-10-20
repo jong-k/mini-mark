@@ -83,13 +83,19 @@ Typora 스타일의 위지윅(WYSIWYM) 편집 경험과 빠른 실행 속도, �
 
 상세 태스크: [`superpowers/plans/2026-10-20-phase4-native-packaging.md`](superpowers/plans/2026-10-20-phase4-native-packaging.md)
 
-- [ ] Finder 연동 (`fileAssociations` 설정으로 `.md` 파일 더블클릭 및 드래그 앤 드롭 시 앱으로 열기 처리)
-- [ ] 외부 프로그램에 의한 현재 열린 파일 변경 감지(File Watcher) 및 리로드 알림
-- [ ] 최근 열었던 파일(Recent Files) 목록 관리
-- [ ] 성능 프로파일링 (콜드 스타트 속도, 유휴 메모리 100MB 이내, 대용량 문서 타이핑 지연 확인)
-- [ ] macOS `.app` 및 `.dmg` 프로덕션 빌드 테스트
+- [x] Finder 연동 (`fileAssociations` 설정으로 `.md` 파일 더블클릭 및 드래그 앤 드롭 시 앱으로 열기 처리)
+- [x] 외부 프로그램에 의한 현재 열린 파일 변경 감지(File Watcher) 및 리로드 알림 (2초 mtime 폴링)
+- [x] 최근 열었던 파일(Recent Files) 목록 관리 (File 메뉴 추가, 단축키는 메뉴 accelerator로 이동)
+- [x] 성능 프로파일링 (콜드 스타트 속도, 유휴 메모리 100MB 이내, 대용량 문서 타이핑 지연 확인)
+- [x] macOS `.app` 및 `.dmg` 프로덕션 빌드 테스트
 - 측정 결과 (4단계, Apple Silicon, 릴리스 빌드)
   - 번들: `.app` 4.4MB(실행 파일 4.3MB), `.dmg` 2.2MB (목표 10MB 이하). JS 청크 816KB(gzip 254KB) 단일 파일
   - 콜드 스타트: 수동 측정 필요(비GUI 환경에서 창 생성 시점을 잡지 못함). 측정 스크립트는 4단계 계획 Task 4 Step 3
   - 유휴 메모리(빈 문서, 15초 대기, physical footprint): 메인 29.8MB + Web Content 33.5MB = 약 63MB (목표 100MB 이내). 대용량 문서(2.1MB, 10000절)는 수동 측정 필요
   - 타이핑 지연: 수동 측정 필요(Web Inspector 타임라인). 테스트 문서 `/tmp/mini-mark-large.md`
+- 알려진 문제 (4단계)
+  - 코드 서명과 공증 없음(ad-hoc 서명). 다른 머신에서는 `xattr -d com.apple.quarantine`가 필요하다
+  - 여러 파일을 동시에 열면 첫 파일만 연다(단일 창)
+  - 외부 변경은 2초 폴링으로 감지한다. 다시 불러오면 커서가 문서 처음으로 간다
+  - Open Recent는 파일명만 표시해 같은 이름의 파일을 구분하지 못한다. 사라진 파일은 목록에서 자동으로 빠지지 않는다
+  - 창에 `.md` 파일을 드롭해도 열리지 않음(3단계와 동일, Dock 아이콘 드롭은 동작)

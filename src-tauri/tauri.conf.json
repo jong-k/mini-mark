@@ -31,6 +31,10 @@
   "bundle": {
     "active": true,
     "targets": ["app", "dmg"],
+    "category": "Productivity",
+    "macOS": {
+      "minimumSystemVersion": "12.0"
+    },
     "fileAssociations": [
       {
         "ext": ["md", "markdown"],
