@@ -1,14 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import "./app.css";
 import { Editor, type EditorHandle } from "./editor";
-import { matchShortcut } from "./lib/document-shortcuts";
 import { blockFileDrop } from "./lib/file-drop";
 import { pollFileChange } from "./lib/file-watch";
 import { formatMarkdown } from "./lib/format-markdown";
 import {
+  addRecentFile,
   confirmDiscard,
   confirmReload,
   fileModifiedAt,
+  onDocumentAction,
   onOpenFileRequested,
   onWindowCloseRequested,
   pickOpenPath,
@@ -61,6 +62,7 @@ export default function App() {
       setFilePath(path);
       setIsDirty(false);
       knownMtime.current = await fileModifiedAt(path).catch(() => null);
+      await addRecentFile(path);
     });
   }
 
@@ -91,8 +93,8 @@ export default function App() {
       }
       knownMtime.current = await fileModifiedAt(path).catch(() => null);
       setFilePath(path);
-      if (h.getValue() !== source) return;
-      setIsDirty(false);
+      if (h.getValue() === source) setIsDirty(false);
+      await addRecentFile(path);
     });
   }
 
@@ -198,17 +200,12 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    function onKeyDown(e: KeyboardEvent) {
-      const action = matchShortcut(e);
-      if (action === null) return;
-      e.preventDefault();
-      void guardedRef.current(() => actions.current[action]());
-    }
-    window.addEventListener("keydown", onKeyDown);
+    // 단축키는 File 메뉴 accelerator가 받아 이 이벤트로 온다.
+    const listening = onDocumentAction((a) => void guardedRef.current(() => actions.current[a]()));
     window.addEventListener("dragover", blockFileDrop);
     window.addEventListener("drop", blockFileDrop);
     return () => {
-      window.removeEventListener("keydown", onKeyDown);
+      void listening.then((fn) => fn());
       window.removeEventListener("dragover", blockFileDrop);
       window.removeEventListener("drop", blockFileDrop);
     };

@@ -5,6 +5,9 @@ import { ask, message, open, save } from "@tauri-apps/plugin-dialog";
 
 const MARKDOWN_FILTERS = [{ name: "Markdown", extensions: ["md", "markdown"] }];
 
+/** File 메뉴 항목 id와 같다. Rust `menu.rs`가 그대로 emit한다. */
+export type DocumentAction = "new" | "open" | "save" | "saveAs";
+
 export function readMarkdown(path: string): Promise<string> {
   return invoke<string>("read_markdown", { path });
 }
@@ -33,6 +36,16 @@ export function takeOpenedFile(): Promise<string | null> {
 
 export function onOpenFileRequested(handler: (path: string) => void): Promise<() => void> {
   return listen<string>("open-file", (event) => handler(event.payload));
+}
+
+export function onDocumentAction(
+  handler: (action: DocumentAction) => void,
+): Promise<() => void> {
+  return listen<DocumentAction>("document-action", (event) => handler(event.payload));
+}
+
+export function addRecentFile(path: string): Promise<void> {
+  return invoke<void>("add_recent_file", { path });
 }
 
 export function pickOpenPath(): Promise<string | null> {

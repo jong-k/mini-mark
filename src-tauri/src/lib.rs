@@ -1,8 +1,9 @@
 mod fs;
+mod menu;
+mod recent;
 
 use std::sync::Mutex;
 use tauri::Manager;
-use tauri::menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder};
 
 /// Finder가 넘긴 파일 경로. 웹뷰 리스너가 생기기 전(`ready == false`)에 온 요청은 보관했다가
 /// `take_opened_file`로 넘기고, 그 뒤 요청은 이벤트로만 보낸다.
@@ -46,55 +47,18 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .manage(Mutex::new(OpenedFile::default()))
         .setup(|app| {
-            // 기본 메뉴의 Quit은 terminate:를 직접 호출해 CloseRequested를 건너뛴다. 창 닫기로 우회시킨다.
-            let quit = MenuItemBuilder::with_id("quit", "Quit mini-mark")
-                .accelerator("CmdOrCtrl+Q")
-                .build(app)?;
-            let app_menu = SubmenuBuilder::new(app, "mini-mark")
-                .about(None)
-                .separator()
-                .services()
-                .separator()
-                .hide()
-                .hide_others()
-                .show_all()
-                .separator()
-                .item(&quit)
-                .build()?;
-            let edit_menu = SubmenuBuilder::new(app, "Edit")
-                .undo()
-                .redo()
-                .separator()
-                .cut()
-                .copy()
-                .paste()
-                .select_all()
-                .build()?;
-            let window_menu = SubmenuBuilder::new(app, "Window")
-                .minimize()
-                .maximize()
-                .separator()
-                .close_window()
-                .build()?;
-            let menu = MenuBuilder::new(app)
-                .items(&[&app_menu, &edit_menu, &window_menu])
-                .build()?;
+            let (menu, open_recent) = menu::build(app.handle())?;
             app.set_menu(menu)?;
+            recent::setup(app.handle(), open_recent)?;
             Ok(())
         })
-        // ponytail: Dock 우클릭 종료와 로그아웃은 tao에 훅이 없어 가드를 타지 않는다. 필요하면 applicationShouldTerminate 처리 추가.
-        .on_menu_event(|app, event| {
-            if event.id() == "quit"
-                && let Some(w) = app.get_webview_window("main")
-            {
-                let _ = w.close();
-            }
-        })
+        .on_menu_event(menu::on_event)
         .invoke_handler(tauri::generate_handler![
             fs::read_markdown,
             fs::save_markdown_atomic,
             fs::save_asset,
             fs::file_modified_at,
+            recent::add_recent_file,
             take_opened_file
         ])
         .build(tauri::generate_context!())
