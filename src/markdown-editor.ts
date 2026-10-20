@@ -1,4 +1,12 @@
-import { Editor, editorViewCtx, remarkStringifyOptionsCtx, rootCtx, schemaCtx } from "@milkdown/kit/core";
+import {
+  Editor,
+  editorViewCtx,
+  parserCtx,
+  remarkStringifyOptionsCtx,
+  rootCtx,
+  schemaCtx,
+  serializerCtx,
+} from "@milkdown/kit/core";
 import type { Ctx } from "@milkdown/kit/ctx";
 import { history } from "@milkdown/kit/plugin/history";
 import { upload, uploadConfig } from "@milkdown/kit/plugin/upload";
@@ -14,7 +22,7 @@ import {
 import { extendListItemSchemaForTask, gfm } from "@milkdown/kit/preset/gfm";
 import { textblockTypeInputRule } from "@milkdown/kit/prose/inputrules";
 import { keymap } from "@milkdown/kit/prose/keymap";
-import type { DOMOutputSpec, Node } from "@milkdown/kit/prose/model";
+import { type DOMOutputSpec, type Node, Slice } from "@milkdown/kit/prose/model";
 import { Plugin, PluginKey } from "@milkdown/kit/prose/state";
 import { Decoration, DecorationSet, type EditorView } from "@milkdown/kit/prose/view";
 import { $ctx, $inputRule, $prose, getMarkdown, replaceAll } from "@milkdown/kit/utils";
@@ -225,6 +233,47 @@ const taskToggle = $prose(
     }),
 );
 
+function clipboardMarkdown(slice: Slice, ctx: Ctx): string {
+  const schema = ctx.get(schemaCtx);
+  const serialize = (doc: Node) => ctx.get(serializerCtx)(doc).replace(/\n+$/, "");
+  let content = slice.content;
+  while (content.childCount === 1 && !content.firstChild!.isTextblock) content = content.firstChild!.content;
+  const block = content.childCount === 1 ? content.firstChild! : null;
+  // 한 블록 안의 선택은 인라인 서식만 남긴다. 제목 일부를 복사할 때 "#"이 붙지 않게 한다.
+  if (block?.isTextblock) {
+    if (block.type.spec.code) return block.textContent;
+    return serialize(schema.topNodeType.create(null, schema.nodes.paragraph!.create(null, block.content)));
+  }
+  const doc = schema.topNodeType.createAndFill(null, slice.content);
+  // 빈 문자열이면 ProseMirror가 기본 텍스트 추출로 처리한다.
+  return doc ? serialize(doc) : "";
+}
+
+// ponytail: VS Code 판별은 경험칙이다. WKWebView가 vscode-editor-data를 노출하지 않을 수 있어 VS Code HTML의 white-space: pre 스타일도 본다. 다른 편집기가 잘못 판별되면 여기에 추가한다.
+const fromCodeEditor = (data: DataTransfer, html: string) =>
+  data.types.includes("vscode-editor-data") || /white-space:\s*pre[;"]/.test(html);
+
+// 복사할 때 text/plain을 마크다운으로 채운다. text/html은 기본값 그대로 두어 서식을 받는 앱과 에디터 안 붙여넣기는 서식을 유지한다.
+// 붙여넣을 때는 서식 HTML이 없는 마크다운 텍스트를 파싱해 서식으로 보여 준다. 스펙과 결정 이유는 docs/spec/clipboard.md.
+const markdownClipboard = $prose(
+  (ctx) =>
+    new Plugin({
+      props: {
+        clipboardTextSerializer: (slice) => clipboardMarkdown(slice, ctx),
+        handlePaste: (view, event) => {
+          const data = event.clipboardData;
+          if (!data || view.state.selection.$from.parent.type.spec.code) return false;
+          const text = data.getData("text/plain");
+          const html = data.getData("text/html");
+          if (text === "" || (html !== "" && !fromCodeEditor(data, html))) return false;
+          const doc = ctx.get(parserCtx)(text);
+          view.dispatch(view.state.tr.replaceSelection(Slice.maxOpen(doc.content)).scrollIntoView());
+          return true;
+        },
+      },
+    }),
+);
+
 export function createMarkdownEditor(root: HTMLElement, onChange: () => void): Promise<Editor> {
   // 동기 더티 신호. listener 플러그인은 200ms 디바운스라 그 안에 창을 닫으면 변경이 유실된다.
   const docChanged = $prose(
@@ -261,6 +310,7 @@ export function createMarkdownEditor(root: HTMLElement, onChange: () => void): P
     .use(history)
     .use(prism)
     .use(upload)
+    .use(markdownClipboard)
     .use(documentPath)
     .use(imageSrc)
     .use(docChanged)

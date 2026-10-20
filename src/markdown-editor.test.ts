@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { editorViewCtx, schemaCtx, type Editor } from "@milkdown/kit/core";
 import { uploadConfig } from "@milkdown/kit/plugin/upload";
-import type { Node } from "@milkdown/kit/prose/model";
+import { type Node, Slice } from "@milkdown/kit/prose/model";
 import { undo } from "@milkdown/kit/prose/history";
 import { TextSelection } from "@milkdown/kit/prose/state";
 import { afterEach, expect, it, vi } from "vitest";
@@ -388,4 +388,79 @@ it("pasting an image saves it under assets and returns a relative image node", a
   );
   expect(nodes).toHaveLength(1);
   expect((nodes as Node[])[0]!.attrs.src).toMatch(/^assets\/image-\d{8}-\d{6}\.png$/);
+});
+
+function copyText(editor: Editor, from: number, to: number): string {
+  return editor.action((ctx) => {
+    const view = ctx.get(editorViewCtx);
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, from, to)));
+    return view.someProp("clipboardTextSerializer", (f) => f(view.state.selection.content(), view)) ?? "";
+  });
+}
+
+it("copies a multi-block selection as markdown", async () => {
+  const { handle, editor } = await setup();
+  handle.setValue("# 제목\n\n- 항목 **굵게**\n");
+  const end = editor.action((ctx) => ctx.get(editorViewCtx).state.doc.content.size);
+  expect(copyText(editor, 1, end - 3)).toBe("# 제목\n\n- 항목 **굵게**");
+});
+
+it("copies a selection inside one block as inline markdown without the block prefix", async () => {
+  const { handle, editor } = await setup();
+  handle.setValue("a **b** c\n");
+  // doc(0) > paragraph(0) > "a "(1-3) "b"(3-4) " c"(4-6)
+  expect(copyText(editor, 1, 4)).toBe("a **b**");
+  handle.setValue("# 제목\n");
+  expect(copyText(editor, 1, 3)).toBe("제목");
+});
+
+it("copies text inside a code block without fences or escaping", async () => {
+  const { handle, editor } = await setup();
+  handle.setValue("```js\nconst *a* = 1;\n```\n");
+  expect(copyText(editor, 1, 14)).toBe("const *a* = 1");
+});
+
+function paste(editor: Editor, at: number, data: Record<string, string>): boolean {
+  // jsdom에는 ClipboardEvent가 없는데 upload 플러그인이 instanceof로 검사한다.
+  vi.stubGlobal("ClipboardEvent", class extends Event {});
+  return editor.action((ctx) => {
+    const view = ctx.get(editorViewCtx);
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, at)));
+    const clipboardData = { types: Object.keys(data), getData: (type: string) => data[type] ?? "", files: [] };
+    const event = { clipboardData } as unknown as ClipboardEvent;
+    return view.someProp("handlePaste", (f) => f(view, event, Slice.empty)) ?? false;
+  });
+}
+
+it("pastes plain markdown text as formatted content", async () => {
+  const { handle, editor } = await setup();
+  handle.setValue("");
+  expect(paste(editor, 1, { "text/plain": "# 제목\n\n- a" })).toBe(true);
+  expect(handle.getValue()).toBe("# 제목\n\n- a\n");
+});
+
+it("pastes inline markdown into the middle of a paragraph", async () => {
+  const { handle, editor } = await setup();
+  handle.setValue("ab\n");
+  paste(editor, 2, { "text/plain": "**x**" });
+  expect(handle.getValue()).toBe("a**x**b\n");
+});
+
+it("parses markdown copied from VS Code even though it carries html", async () => {
+  const { handle, editor } = await setup();
+  const html = `<meta charset='utf-8'><div style="color: #d4d4d4;font-family: Menlo;white-space: pre;"><div><span># 제목</span></div></div>`;
+  handle.setValue("");
+  expect(paste(editor, 1, { "text/plain": "# 제목", "text/html": html })).toBe(true);
+  expect(handle.getValue()).toBe("# 제목\n");
+  handle.setValue("");
+  expect(paste(editor, 1, { "text/plain": "# 제목", "text/html": "<span>x</span>", "vscode-editor-data": "{}" })).toBe(true);
+  expect(handle.getValue()).toBe("# 제목\n");
+});
+
+it("leaves rich html and code block pastes to the default handler", async () => {
+  const { handle, editor } = await setup();
+  handle.setValue("```\nx\n```\n");
+  expect(paste(editor, 1, { "text/plain": "# a" })).toBe(false);
+  handle.setValue("");
+  expect(paste(editor, 1, { "text/plain": "# a", "text/html": "<h1>a</h1>" })).toBe(false);
 });
