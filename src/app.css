@@ -150,6 +150,76 @@ body,
   border-radius: 2px;
 }
 
+/* 찾기 바. 본문 위에 떠 있고 폭은 .ProseMirror의 최대 폭을 따른다. */
+.find-bar {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(860px, calc(100% - 32px));
+  display: flex;
+  gap: 8px;
+  z-index: 10;
+}
+@media (min-width: 1400px) {
+  .find-bar {
+    width: min(1024px, calc(100% - 32px));
+  }
+}
+@media (min-width: 1800px) {
+  .find-bar {
+    width: min(1200px, calc(100% - 32px));
+  }
+}
+.find-field,
+.find-arrows {
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  border-radius: 16px;
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+.find-field {
+  flex: 1;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+}
+.find-field input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: none;
+  outline: none;
+  font: inherit;
+  color: var(--fg);
+}
+.find-field input::placeholder {
+  color: var(--muted);
+}
+.find-count {
+  font-size: 12px;
+  color: var(--accent);
+  white-space: nowrap;
+}
+.find-count.empty {
+  color: var(--muted);
+}
+.find-bar button {
+  display: flex;
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--muted);
+  cursor: pointer;
+}
+.find-arrows {
+  gap: 8px;
+  padding: 6px 8px;
+}
+
 .ProseMirror img {
   max-width: 100%;
 }

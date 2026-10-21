@@ -1,4 +1,5 @@
-import { useEffect, useLayoutEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { FindBar } from "./find-bar";
 import { showError } from "./lib/tauri";
 import { createMarkdownEditor, editorHandle } from "./markdown-editor";
 
@@ -46,6 +47,8 @@ export function Editor({
   onReady: () => void;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
+  // 찾기 바는 핸들이 생긴 뒤에만 렌더한다. 생성 직후 한 번만 다시 렌더하고 타이핑 중에는 렌더가 없다.
+  const [find, setFind] = useState<FindHandle | null>(null);
   // app.tsx가 매 렌더마다 새 onChange를 넘긴다. 이펙트 의존성에 넣으면 에디터가 재생성되어 본문이 사라진다.
   const onChangeRef = useRef(onChange);
   const onReadyRef = useRef(onReady);
@@ -62,11 +65,13 @@ export function Editor({
       .then((e) => {
         if (cancelled) return e.destroy();
         handle = handleRef.current = editorHandle(e);
+        setFind(handle.find);
         onReadyRef.current();
       })
       .catch((err) => void showError(String(err)));
     return () => {
       cancelled = true;
+      setFind(null);
       void creating
         .then((e) => {
           if (handle === null) return; // 생성 완료 전 취소: 위 then이 이미 destroy했다
@@ -77,5 +82,10 @@ export function Editor({
     };
   }, [handleRef]);
 
-  return <div ref={rootRef} />;
+  return (
+    <>
+      <div ref={rootRef} />
+      {find && <FindBar find={find} />}
+    </>
+  );
 }
