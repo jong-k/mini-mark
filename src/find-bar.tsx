@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp, Search, X } from "lucide-react";
+import { ChevronDown, ChevronUp, CircleX, Search } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { FindHandle, FindState } from "./editor";
 import { onFindAction } from "./lib/tauri";
@@ -72,6 +72,8 @@ export function FindBar({ find }: { find: FindHandle }) {
   };
   const closeBar = () => {
     cancel();
+    // 플러그인 검색어가 비므로 여기도 비운다. 남겨 두면 같은 검색어를 다시 쳤을 때 Enter가 검색 대신 이동한다.
+    searched.current = "";
     setOpen(false);
     find.close();
   };
@@ -171,7 +173,7 @@ export function FindBar({ find }: { find: FindHandle }) {
             closeBar();
           }}
         >
-          <X {...ICON} />
+          <CircleX {...ICON} />
         </button>
       </div>
       <div className="find-arrows">

@@ -656,3 +656,28 @@ it("search with an empty query clears highlights", async () => {
   expect(highlights()).toHaveLength(0);
   expect(last(states)).toEqual({ query: "", count: 0, current: -1 });
 });
+
+it("editing that removes only the current match moves current to the next match after it", async () => {
+  const { handle, editor } = await setup();
+  handle.setValue("foo\n\nfoo\n\nfoo\n");
+  const states = findStates(handle);
+  handle.find.search("foo");
+  handle.find.step(1);
+  editor.action((ctx) => {
+    const view = ctx.get(editorViewCtx);
+    view.dispatch(view.state.tr.delete(6, 9));
+  });
+  expect(last(states)).toEqual({ query: "foo", count: 2, current: 1 });
+  const paragraphs = Array.from(root!.querySelectorAll(".ProseMirror p"));
+  expect(paragraphs.indexOf(currentHighlights()[0]!.closest("p")!)).toBe(2);
+});
+
+it("highlights a match inside a code block after the prism token styles", async () => {
+  const { handle } = await setup();
+  handle.setValue("```js\nconst foo = 1;\n```\n");
+  handle.find.search("const");
+  const current = currentHighlights();
+  expect(current).toHaveLength(1);
+  // 토큰 데코레이션과 같은 span에 합쳐진다. 같은 특이도라 뒤에 선언된 규칙이 이기므로 app.css의 찾기 규칙은 .token 규칙 뒤에 있어야 한다. 색은 jsdom이 못 계산하니 수동 검증 항목이다.
+  expect(current[0]!.classList.contains("token")).toBe(true);
+});

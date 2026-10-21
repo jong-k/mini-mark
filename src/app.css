@@ -140,16 +140,6 @@ body,
   background: var(--code-bg);
 }
 
-/* 찾기 일치 표시. 스펙은 docs/spec/find.md. */
-.ProseMirror .find-match {
-  color: var(--accent);
-}
-.ProseMirror .find-match-current {
-  background: var(--accent);
-  color: var(--bg);
-  border-radius: 2px;
-}
-
 /* 찾기 바. 본문 위에 떠 있고 폭은 .ProseMirror의 최대 폭을 따른다. */
 .find-bar {
   position: fixed;
@@ -322,4 +312,14 @@ body,
   .token.attr-name {
     color: #d2a8ff;
   }
+}
+
+/* 찾기 일치 표시. 스펙은 docs/spec/find.md. 코드 블록 안에서는 토큰 span과 합쳐지고 특이도가 같아 .token 규칙보다 뒤에 둔다. */
+.ProseMirror .find-match {
+  color: var(--accent);
+}
+.ProseMirror .find-match-current {
+  background: var(--accent);
+  color: var(--bg);
+  border-radius: 2px;
 }

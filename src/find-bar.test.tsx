@@ -22,11 +22,7 @@ function fakeFind() {
   const emit = (state: FindState) => listeners.forEach((l) => l(state));
   return {
     search: vi.fn((query: string) =>
-      emit(
-        query === "foo"
-          ? { query, count: 2, current: 0 }
-          : { query, count: 0, current: query === "" ? -1 : -1 },
-      ),
+      emit(query === "foo" ? { query, count: 2, current: 0 } : { query, count: 0, current: -1 }),
     ),
     step: vi.fn(),
     close: vi.fn(() => emit({ query: "", count: 0, current: -1 })),
@@ -167,6 +163,33 @@ it("clear button empties the query and closes", async () => {
   expect(find.close).toHaveBeenCalledTimes(1);
   await open();
   expect(input().value).toBe("");
+  // 닫기 전 검색어를 다시 치고 100ms 안에 Enter를 눌러도 검색한다.
+  find.search.mockClear();
+  await typeText("foo");
+  await key("Enter");
+  expect(find.search).toHaveBeenCalledWith("foo");
+  expect(find.step).not.toHaveBeenCalled();
+});
+
+it("uses a circled X for the clear button", async () => {
+  await open();
+  const icon = container.querySelector('[aria-label="찾기 닫기"] svg')!;
+  expect(icon.getAttribute("class")).toContain("circle-x");
+});
+
+it("webkit order: enter after composition end searches once and does not step", async () => {
+  await open();
+  await typeText("fo");
+  await advance(100);
+  // WebKit은 compositionend 뒤에 input과 isComposing이 거짓인 Enter를 보낸다.
+  await composition("compositionstart");
+  await typeText("foㅇ");
+  await composition("compositionend");
+  await typeText("foo");
+  await key("Enter");
+  expect(find.search).toHaveBeenCalledTimes(2);
+  expect(find.search).toHaveBeenLastCalledWith("foo");
+  expect(find.step).not.toHaveBeenCalled();
 });
 
 it("find next while closed reopens with the previous query and steps", async () => {
