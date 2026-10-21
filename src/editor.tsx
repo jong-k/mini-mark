@@ -8,6 +8,7 @@ import { createMarkdownEditor, editorHandle } from "./markdown-editor";
  * `setValue`는 `onChange`를 발생시키지 않아야 한다. 핸들은 Milkdown 생성이 끝나기 전까지 `null`이다.
  * `setFilePath`는 붙여넣은 이미지의 저장 위치와 `getValue`가 상대 경로를 계산할 기준 파일을 정한다. `setValue`보다 먼저 호출한다.
  * 본문은 불러온 폴더 기준 경로를 유지하므로 `setFilePath`는 `onChange`를 발생시키지 않는다.
+ * `find`는 찾기 바가 쓰는 핸들이다. 표시만 바꾸고 문서는 바꾸지 않는다.
  */
 export interface EditorHandle {
   getValue(): string;
