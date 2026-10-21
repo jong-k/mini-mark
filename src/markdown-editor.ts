@@ -23,7 +23,7 @@ import { extendListItemSchemaForTask, gfm } from "@milkdown/kit/preset/gfm";
 import { textblockTypeInputRule } from "@milkdown/kit/prose/inputrules";
 import { keymap } from "@milkdown/kit/prose/keymap";
 import { type DOMOutputSpec, type Node, Slice } from "@milkdown/kit/prose/model";
-import { Plugin, PluginKey } from "@milkdown/kit/prose/state";
+import { Plugin, PluginKey, TextSelection } from "@milkdown/kit/prose/state";
 import { Decoration, DecorationSet, type EditorView } from "@milkdown/kit/prose/view";
 import { $ctx, $inputRule, $prose, getMarkdown, replaceAll } from "@milkdown/kit/utils";
 
@@ -34,7 +34,8 @@ const headingInputRule = $inputRule((ctx) =>
   })),
 );
 import { prism } from "@milkdown/plugin-prism";
-import type { EditorHandle } from "./editor";
+import type { EditorHandle, FindState } from "./editor";
+import { findMatches, initialIndex, type Match, wrapIndex } from "./lib/find-matches";
 import { assetFileName, localFilePath, relativeLocalSrc } from "./lib/image-asset";
 import { assetUrl, saveAsset, showError } from "./lib/tauri";
 
@@ -201,6 +202,104 @@ async function uploadImages(files: FileList, ctx: Ctx): Promise<Node[]> {
   return nodes;
 }
 
+// 찾기. 검색어는 플러그인 상태가 아니라 ctx에 둔다. setValue의 replaceAll이 EditorState를 새로 만들어 플러그인 init이 다시 돌기 때문이다.
+const findRequest = $ctx<{ query: string }, "findRequest">({ query: "" }, "findRequest");
+const findListeners = $ctx<Set<(state: FindState) => void>, "findListeners">(
+  new Set(),
+  "findListeners",
+);
+const FIND_KEY = new PluginKey<FindPluginState>("find");
+
+interface FindPluginState {
+  query: string;
+  matches: Match[];
+  current: number;
+  decorations: DecorationSet;
+  /** 검색과 이동 직후에만 참. 편집으로 다시 찾을 때는 스크롤하지 않는다. */
+  scroll: boolean;
+}
+
+type FindMeta =
+  | { type: "search"; query: string }
+  | { type: "step"; delta: 1 | -1 }
+  | { type: "close" };
+
+function decorate(doc: Node, matches: Match[], current: number): DecorationSet {
+  return DecorationSet.create(
+    doc,
+    matches.map((m, i) =>
+      Decoration.inline(m.from, m.to, {
+        class: i === current ? "find-match find-match-current" : "find-match",
+      }),
+    ),
+  );
+}
+
+function buildFind(query: string, doc: Node, pos: number, scroll: boolean): FindPluginState {
+  const matches = findMatches(doc, query);
+  const current = initialIndex(matches, pos);
+  return { query, matches, current, decorations: decorate(doc, matches, current), scroll };
+}
+
+const toFindState = (s: FindPluginState): FindState => ({
+  query: s.query,
+  count: s.matches.length,
+  current: s.current,
+});
+
+const findPlugin = $prose((ctx) => {
+  const notify = (s: FindPluginState) => {
+    for (const listener of ctx.get(findListeners.key)) listener(toFindState(s));
+  };
+  return new Plugin({
+    key: FIND_KEY,
+    state: {
+      init: (_, state) =>
+        buildFind(ctx.get(findRequest.key).query, state.doc, state.selection.from, false),
+      apply: (tr, prev, _, state) => {
+        const meta = tr.getMeta(FIND_KEY) as FindMeta | undefined;
+        if (meta?.type === "search")
+          return buildFind(meta.query, state.doc, state.selection.from, true);
+        if (meta?.type === "step") {
+          const current = wrapIndex(prev.matches.length, prev.current, meta.delta);
+          return {
+            ...prev,
+            current,
+            decorations: decorate(state.doc, prev.matches, current),
+            scroll: true,
+          };
+        }
+        if (meta?.type === "close") return buildFind("", state.doc, 0, false);
+        if (!tr.docChanged) return prev;
+        // 편집 전 현재 일치의 위치 이후 첫 일치를 현재로 삼는다.
+        const pos = prev.current >= 0 ? tr.mapping.map(prev.matches[prev.current]!.from) : 0;
+        return buildFind(prev.query, state.doc, pos, false);
+      },
+    },
+    props: { decorations: (state) => FIND_KEY.getState(state)!.decorations },
+    view: (view) => {
+      // setValue의 replaceAll은 플러그인 배열이 다른 상태를 만들어 ProseMirror가 플러그인 view를 다시 만든다. 그때 update는 불리지 않으므로 여기서 알린다.
+      notify(FIND_KEY.getState(view.state)!);
+      return {
+        update: (view, prevState) => {
+          const s = FIND_KEY.getState(view.state)!;
+          const p = FIND_KEY.getState(prevState)!;
+          if (s === p) return;
+          // jsdom에는 scrollIntoView가 없다.
+          if (s.scroll && s.current >= 0)
+            view.dom.querySelector(".find-match-current")?.scrollIntoView?.({ block: "center" });
+          if (
+            s.query !== p.query ||
+            s.matches.length !== p.matches.length ||
+            s.current !== p.current
+          )
+            notify(s);
+        },
+      };
+    },
+  });
+});
+
 export function toggleTaskItem(view: EditorView, pos: number): boolean {
   const node = view.state.doc.nodeAt(pos);
   if (!node || node.type.name !== "list_item" || node.attrs.checked == null) return false;
@@ -327,6 +426,8 @@ export function createMarkdownEditor(root: HTMLElement, onChange: () => void): P
         ...prev,
         uploader: (files, _schema, ctx) => uploadImages(files, ctx),
       }));
+      // $ctx 기본값 Set은 에디터 인스턴스 사이에 공유된다. 인스턴스마다 새로 만든다.
+      ctx.set(findListeners.key, new Set());
     })
     .use(commonmark.filter((plugin) => plugin !== wrapInHeadingInputRule))
     .use(headingInputRule)
@@ -344,6 +445,9 @@ export function createMarkdownEditor(root: HTMLElement, onChange: () => void): P
     .use(documentPath)
     .use(imageSrc)
     .use(docChanged)
+    .use(findRequest)
+    .use(findListeners)
+    .use(findPlugin)
     .create();
 }
 
@@ -377,5 +481,46 @@ export function editorHandle(editor: Editor): EditorHandle {
         const view = ctx.get(editorViewCtx);
         view.dispatch(view.state.tr.setMeta(IMAGE_SRC_KEY, true));
       }),
+    find: {
+      search: (query) =>
+        editor.action((ctx) => {
+          ctx.set(findRequest.key, { query });
+          const view = ctx.get(editorViewCtx);
+          view.dispatch(view.state.tr.setMeta(FIND_KEY, { type: "search", query }));
+        }),
+      step: (delta) =>
+        editor.action((ctx) => {
+          const view = ctx.get(editorViewCtx);
+          view.dispatch(view.state.tr.setMeta(FIND_KEY, { type: "step", delta }));
+        }),
+      close: () =>
+        editor.action((ctx) => {
+          ctx.set(findRequest.key, { query: "" });
+          const view = ctx.get(editorViewCtx);
+          const s = FIND_KEY.getState(view.state)!;
+          const match = s.matches[s.current];
+          let tr = view.state.tr.setMeta(FIND_KEY, { type: "close" });
+          if (match)
+            tr = tr
+              .setSelection(TextSelection.create(view.state.doc, match.from, match.to))
+              .scrollIntoView();
+          view.dispatch(tr);
+          view.focus();
+        }),
+      selectionText: () =>
+        editor.action((ctx) => {
+          const { doc, selection } = ctx.get(editorViewCtx).state;
+          const text = doc.textBetween(selection.from, selection.to, "\n");
+          return text.includes("\n") ? "" : text;
+        }),
+      onChange: (listener) =>
+        editor.action((ctx) => {
+          const listeners = ctx.get(findListeners.key);
+          listeners.add(listener);
+          return () => {
+            listeners.delete(listener);
+          };
+        }),
+    },
   };
 }

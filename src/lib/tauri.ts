@@ -45,6 +45,13 @@ export function onDocumentAction(handler: (action: DocumentAction) => void): Pro
   return listen<DocumentAction>("document-action", (event) => handler(event.payload));
 }
 
+/** Edit 메뉴 찾기 항목 id와 같다. Rust `menu.rs`가 그대로 emit한다. */
+export type FindAction = "find" | "findNext" | "findPrev";
+
+export function onFindAction(handler: (action: FindAction) => void): Promise<() => void> {
+  return listen<FindAction>("find-action", (event) => handler(event.payload));
+}
+
 export function addRecentFile(path: string): Promise<void> {
   return invoke<void>("add_recent_file", { path });
 }
