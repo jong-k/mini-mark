@@ -42,6 +42,16 @@ pub fn build(app: &AppHandle) -> tauri::Result<(Menu<Wry>, Submenu<Wry>)> {
         .item(&save)
         .item(&save_as)
         .build()?;
+    // 찾기 단축키도 메뉴가 받는다. 프론트엔드 find-bar.tsx가 find-action 이벤트로 처리한다.
+    let find = MenuItemBuilder::with_id("find", "Find...")
+        .accelerator("CmdOrCtrl+F")
+        .build(app)?;
+    let find_next = MenuItemBuilder::with_id("findNext", "Find Next")
+        .accelerator("CmdOrCtrl+G")
+        .build(app)?;
+    let find_prev = MenuItemBuilder::with_id("findPrev", "Find Previous")
+        .accelerator("CmdOrCtrl+Shift+G")
+        .build(app)?;
     let edit_menu = SubmenuBuilder::new(app, "Edit")
         .undo()
         .redo()
@@ -50,6 +60,10 @@ pub fn build(app: &AppHandle) -> tauri::Result<(Menu<Wry>, Submenu<Wry>)> {
         .copy()
         .paste()
         .select_all()
+        .separator()
+        .item(&find)
+        .item(&find_next)
+        .item(&find_prev)
         .build()?;
     let window_menu = SubmenuBuilder::new(app, "Window")
         .minimize()
@@ -74,6 +88,9 @@ pub fn on_event(app: &AppHandle, event: MenuEvent) {
         }
         "new" | "open" | "save" | "saveAs" => {
             let _ = app.emit("document-action", id);
+        }
+        "find" | "findNext" | "findPrev" => {
+            let _ = app.emit("find-action", id);
         }
         "clear-recent" => {
             let _ = recent::clear(app, &app.state::<RecentFiles>());
