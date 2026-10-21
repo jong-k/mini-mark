@@ -12,6 +12,27 @@ export interface EditorHandle {
   getValue(): string;
   setValue(value: string): void;
   setFilePath(path: string | null): void;
+  find: FindHandle;
+}
+
+export interface FindState {
+  query: string;
+  count: number;
+  /** 0부터 센다. 일치가 없으면 -1. */
+  current: number;
+}
+
+/** 찾기. 문서를 바꾸지 않고 표시만 바꾼다. 스펙은 docs/spec/find.md. */
+export interface FindHandle {
+  /** 검색어를 바꾸고 커서 이후 첫 일치를 현재로 삼는다. 빈 문자열이면 표시를 지운다. */
+  search(query: string): void;
+  step(delta: 1 | -1): void;
+  /** 표시를 지우고, 현재 일치가 있으면 그 범위를 선택한 채 본문에 포커스를 준다. */
+  close(): void;
+  /** 본문 선택 텍스트. 없거나 줄바꿈이 있으면 빈 문자열. */
+  selectionText(): string;
+  /** 상태가 바뀔 때마다 부른다. 해제 함수를 돌려준다. */
+  onChange(listener: (state: FindState) => void): () => void;
 }
 
 export function Editor({

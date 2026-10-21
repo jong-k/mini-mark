@@ -7,6 +7,7 @@ import { TextSelection } from "@milkdown/kit/prose/state";
 import { afterEach, expect, it, vi } from "vitest";
 import { formatMarkdown } from "./lib/format-markdown";
 import { saveAsset, showError } from "./lib/tauri";
+import type { EditorHandle, FindState } from "./editor";
 import { createMarkdownEditor, editorHandle, toggleTaskItem } from "./markdown-editor";
 
 vi.mock("./lib/tauri", () => ({
@@ -503,4 +504,155 @@ it("leaves rich html and code block pastes to the default handler", async () => 
   expect(paste(editor, 1, { "text/plain": "# a" })).toBe(false);
   handle.setValue("");
   expect(paste(editor, 1, { "text/plain": "# a", "text/html": "<h1>a</h1>" })).toBe(false);
+});
+
+// 찾기. 문서 "foo\n\nFoo bar foo\n"의 일치 위치는 1..4, 6..9, 14..17이다.
+const FIND_DOC = "foo\n\nFoo bar foo\n";
+
+const last = <T>(items: T[]) => items[items.length - 1];
+function findStates(handle: EditorHandle) {
+  const states: FindState[] = [];
+  handle.find.onChange((s) => states.push(s));
+  return states;
+}
+const highlights = () => Array.from(root!.querySelectorAll(".find-match"));
+const currentHighlights = () => Array.from(root!.querySelectorAll(".find-match-current"));
+const select = (editor: Editor, from: number, to = from) =>
+  editor.action((ctx) => {
+    const view = ctx.get(editorViewCtx);
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, from, to)));
+  });
+const selection = (editor: Editor) =>
+  editor.action((ctx) => {
+    const { from, to } = ctx.get(editorViewCtx).state.selection;
+    return { from, to };
+  });
+
+it("search highlights every match and reports count and current", async () => {
+  const { handle } = await setup();
+  handle.setValue(FIND_DOC);
+  const states = findStates(handle);
+  handle.find.search("foo");
+  expect(last(states)).toEqual({ query: "foo", count: 3, current: 0 });
+  expect(highlights().map((el) => el.textContent)).toEqual(["foo", "Foo", "foo"]);
+  expect(currentHighlights().map((el) => el.textContent)).toEqual(["foo"]);
+});
+
+it("search starts at the first match after the cursor", async () => {
+  const { handle, editor } = await setup();
+  handle.setValue(FIND_DOC);
+  select(editor, 6);
+  const states = findStates(handle);
+  handle.find.search("foo");
+  expect(last(states)).toMatchObject({ count: 3, current: 1 });
+  expect(currentHighlights().map((el) => el.textContent)).toEqual(["Foo"]);
+});
+
+it("step wraps around in both directions and moves the current highlight", async () => {
+  const { handle } = await setup();
+  handle.setValue(FIND_DOC);
+  const states = findStates(handle);
+  handle.find.search("foo");
+  const currentIn = () => {
+    const els = currentHighlights();
+    expect(els).toHaveLength(1);
+    const paragraphs = Array.from(root!.querySelectorAll(".ProseMirror p"));
+    return { text: els[0]!.textContent, paragraph: paragraphs.indexOf(els[0]!.closest("p")!) };
+  };
+  handle.find.step(1);
+  expect(last(states)!.current).toBe(1);
+  expect(currentIn()).toEqual({ text: "Foo", paragraph: 1 });
+  handle.find.step(1);
+  expect(last(states)!.current).toBe(2);
+  expect(currentIn()).toEqual({ text: "foo", paragraph: 1 });
+  handle.find.step(1);
+  expect(last(states)!.current).toBe(0);
+  expect(currentIn()).toEqual({ text: "foo", paragraph: 0 });
+  handle.find.step(-1);
+  expect(last(states)!.current).toBe(2);
+});
+
+it("search and step do not fire onChange or change the document", async () => {
+  const { handle } = await setup();
+  handle.setValue(FIND_DOC);
+  handle.find.search("foo");
+  handle.find.step(1);
+  expect(onChange).not.toHaveBeenCalled();
+  expect(handle.getValue()).toBe(FIND_DOC);
+});
+
+it("editing re-finds and keeps current near the previous match", async () => {
+  const { handle, type } = await setup();
+  handle.setValue("foo\n\nfoo\n");
+  const states = findStates(handle);
+  handle.find.search("foo");
+  handle.find.step(1);
+  type("x");
+  expect(last(states)).toEqual({ query: "foo", count: 2, current: 1 });
+  expect(highlights()).toHaveLength(2);
+});
+
+it("editing that removes every match clears current", async () => {
+  const { handle, editor } = await setup();
+  handle.setValue("foo\n");
+  const states = findStates(handle);
+  handle.find.search("foo");
+  editor.action((ctx) => {
+    const view = ctx.get(editorViewCtx);
+    view.dispatch(view.state.tr.delete(1, 4));
+  });
+  expect(last(states)).toEqual({ query: "foo", count: 0, current: -1 });
+  expect(highlights()).toHaveLength(0);
+});
+
+it("setValue keeps the query and re-finds in the new document", async () => {
+  const { handle } = await setup();
+  handle.setValue(FIND_DOC);
+  const states = findStates(handle);
+  handle.find.search("foo");
+  handle.setValue("foo foo\n");
+  expect(last(states)).toEqual({ query: "foo", count: 2, current: 0 });
+  expect(highlights()).toHaveLength(2);
+});
+
+it("close selects the current match and clears highlights", async () => {
+  const { handle, editor } = await setup();
+  handle.setValue(FIND_DOC);
+  const states = findStates(handle);
+  handle.find.search("foo");
+  handle.find.step(1);
+  handle.find.close();
+  expect(selection(editor)).toEqual({ from: 6, to: 9 });
+  expect(highlights()).toHaveLength(0);
+  expect(last(states)).toEqual({ query: "", count: 0, current: -1 });
+});
+
+it("close without a match keeps the selection where it was", async () => {
+  const { handle, editor } = await setup();
+  handle.setValue(FIND_DOC);
+  select(editor, 2);
+  handle.find.search("zzz");
+  handle.find.close();
+  expect(selection(editor)).toEqual({ from: 2, to: 2 });
+});
+
+it("selectionText returns text inside one block and empty across blocks", async () => {
+  const { handle, editor } = await setup();
+  handle.setValue("ab cd\n\nef\n");
+  select(editor, 1, 3);
+  expect(handle.find.selectionText()).toBe("ab");
+  select(editor, 1, 9);
+  expect(handle.find.selectionText()).toBe("");
+  select(editor, 2);
+  expect(handle.find.selectionText()).toBe("");
+});
+
+it("search with an empty query clears highlights", async () => {
+  const { handle } = await setup();
+  handle.setValue(FIND_DOC);
+  const states = findStates(handle);
+  handle.find.search("foo");
+  handle.find.search("");
+  expect(highlights()).toHaveLength(0);
+  expect(last(states)).toEqual({ query: "", count: 0, current: -1 });
 });
