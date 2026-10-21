@@ -47,9 +47,11 @@ export function FindBar({ find }: { find: FindHandle }) {
     input.current?.select();
   };
   // 검색어가 마지막 검색과 다르면 검색만 한다. 한글 조합을 확정하는 Enter가 한 칸 건너뛰지 않게 하기 위해서다.
+  // 메뉴(Cmd+G) 핸들러는 마운트 때 등록되므로 검색어는 ref로 읽는다.
   const move = (delta: 1 | -1) => {
-    if (query !== searched.current) {
-      runSearch(query);
+    const q = latest.current.query;
+    if (q !== searched.current) {
+      runSearch(q);
       return;
     }
     cancel();
@@ -90,7 +92,7 @@ export function FindBar({ find }: { find: FindHandle }) {
         openBar(false);
         if (latest.current.query === "") return;
       }
-      find.step(delta);
+      move(delta);
     });
     // 본문에 포커스가 있을 때도 Esc로 닫는다. 입력란의 Esc도 여기까지 올라온다.
     const onKey = (event: KeyboardEvent) => {

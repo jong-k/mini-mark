@@ -220,6 +220,23 @@ it("find next while closed ignores the editor selection", async () => {
   expect(find.step).toHaveBeenCalledWith(-1);
 });
 
+it("find next while open runs the pending search instead of stepping on stale matches", async () => {
+  await open();
+  await typeText("foo");
+  await key("Enter");
+  await typeText("fox");
+  find.search.mockClear();
+  await open("findNext");
+  expect(find.search).toHaveBeenCalledTimes(1);
+  expect(find.search).toHaveBeenCalledWith("fox");
+  expect(find.step).not.toHaveBeenCalled();
+  // 대기 중이던 검색은 취소돼 현재 위치가 다시 초기화되지 않는다.
+  await advance(100);
+  expect(find.search).toHaveBeenCalledTimes(1);
+  await open("findPrev");
+  expect(find.step).toHaveBeenCalledWith(-1);
+});
+
 it("find action while open only refocuses and selects the input", async () => {
   await open();
   await typeText("foo");
