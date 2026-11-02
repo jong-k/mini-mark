@@ -2,7 +2,8 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 
 use tauri::{
-    AppHandle, Emitter, Manager, RunEvent, State, WebviewWindow, WebviewWindowBuilder, WindowEvent,
+    AppHandle, Emitter, Manager, RunEvent, State, Theme, WebviewWindow, WebviewWindowBuilder,
+    WindowEvent, window::Color,
 };
 use tauri_plugin_dialog::DialogExt;
 
@@ -134,6 +135,15 @@ pub fn focused_label(app: &AppHandle) -> Option<String> {
     existing(app).into_iter().find(|(_, f)| *f).map(|(l, _)| l)
 }
 
+/// 웹뷰는 페이지 로드 전까지 흰 배경을 그린다. 창은 `tauri.conf.json`대로 숨긴 채 만들어지므로,
+/// 다크 테마면 app.css의 --bg 색을 깐 뒤 보여 준다. 첫 창은 Tauri가 setup 전에 만들어 `setup`이 부른다.
+pub fn show_themed(window: &WebviewWindow) -> tauri::Result<()> {
+    if window.theme()? == Theme::Dark {
+        window.set_background_color(Some(Color(0x1e, 0x1e, 0x1e, 255)))?;
+    }
+    window.show()
+}
+
 /// `tauri.conf.json`의 첫 창 설정을 복제해 라벨만 바꾼다. 앞 창이 있으면 오른쪽 아래로 24pt 비켜 띄운다.
 fn create_window(app: &AppHandle, label: &str) -> tauri::Result<WebviewWindow> {
     let mut cfg = app.config().app.windows[0].clone();
@@ -145,7 +155,9 @@ fn create_window(app: &AppHandle, label: &str) -> tauri::Result<WebviewWindow> {
         let pos = pos.to_logical::<f64>(scale);
         builder = builder.position(pos.x + 24.0, pos.y + 24.0);
     }
-    builder.build()
+    let window = builder.build()?;
+    show_themed(&window)?;
+    Ok(window)
 }
 
 /// 최소화된 창은 `set_focus`가 듣지 않는다. 먼저 복원한다.

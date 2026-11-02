@@ -5,6 +5,8 @@ mod windows;
 
 use std::sync::Mutex;
 
+use tauri::Manager;
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -14,6 +16,9 @@ pub fn run() {
             let (menu, open_recent) = menu::build(app.handle())?;
             app.set_menu(menu)?;
             recent::setup(app.handle(), open_recent)?;
+            if let Some(main) = app.get_webview_window(windows::MAIN) {
+                windows::show_themed(&main)?;
+            }
             Ok(())
         })
         .on_menu_event(menu::on_event)
