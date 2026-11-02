@@ -6,6 +6,9 @@ use tauri::{
 };
 use tauri_plugin_dialog::DialogExt;
 
+/// tauri.conf.json 첫 창의 라벨(Tauri 기본값)
+pub const MAIN: &str = "main";
+
 /// JS가 보고한 창의 문서 상태. `take`로 준비된 창만 항목이 있다.
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct Doc {
@@ -44,6 +47,8 @@ pub struct Windows {
     next_id: u32,
     docs: HashMap<String, Doc>,
     pending: HashMap<String, String>,
+    /// 어떤 창이든 한 번 준비됐다. 그 전에는 설정의 main 창이 아직 없을 수 있다.
+    booted: bool,
     pub quitting: bool,
 }
 
@@ -58,12 +63,17 @@ impl Windows {
             return Route::Focus(label);
         }
         // 준비 전인 창(콜드 스타트의 main, 막 만든 창)은 보류 경로로 넘긴다.
-        if let Some(w) = existing
+        // macOS는 설정의 main 창이 만들어지기 전에 Opened를 보낼 수 있어, 부팅 전에는 main이 목록에 없어도 보류한다.
+        let unready =
+            |label: &str| !self.docs.contains_key(label) && !self.pending.contains_key(label);
+        if let Some(label) = existing
             .iter()
-            .find(|w| !self.docs.contains_key(w.label) && !self.pending.contains_key(w.label))
+            .map(|w| w.label)
+            .find(|l| unready(l))
+            .or_else(|| (!self.booted && unready(MAIN)).then_some(MAIN))
         {
-            self.pending.insert(w.label.to_string(), path.to_string());
-            return Route::Pending(w.label.to_string());
+            self.pending.insert(label.to_string(), path.to_string());
+            return Route::Pending(label.to_string());
         }
         let blank = |w: &&Existing| self.docs.get(w.label).is_some_and(Doc::is_blank);
         if let Some(w) = existing
@@ -71,6 +81,14 @@ impl Windows {
             .find(|w| w.focused && blank(w))
             .or_else(|| existing.iter().find(blank))
         {
+            // JS 보고보다 먼저 오는 다음 경로가 같은 창을 다시 쓰지 않도록 미리 적어 둔다.
+            self.set_doc(
+                w.label,
+                Doc {
+                    path: Some(path.to_string()),
+                    dirty: false,
+                },
+            );
             return Route::Emit(w.label.to_string());
         }
         let label = self.new_label();
@@ -80,6 +98,7 @@ impl Windows {
 
     /// 창을 준비 상태로 표시하고 보류 경로를 한 번 돌려준다.
     pub fn take(&mut self, label: &str) -> Option<String> {
+        self.booted = true;
         self.docs.entry(label.to_string()).or_default();
         self.pending.remove(label)
     }
@@ -254,9 +273,6 @@ pub fn cancel_quit(state: Shared) {
 mod tests {
     use super::*;
 
-    /// tauri.conf.json 첫 창의 라벨
-    const MAIN: &str = "main";
-
     fn win(label: &str, focused: bool) -> Existing<'_> {
         Existing { label, focused }
     }
@@ -379,6 +395,38 @@ mod tests {
         w.forget(MAIN);
         assert_ne!(
             w.route_open("/a.md", &[win("win-1", true)]),
+            Route::Focus(MAIN.to_string())
+        );
+    }
+
+    #[test]
+    fn cold_start_before_any_window_exists_stores_path_for_main() {
+        // macOS는 설정의 창이 만들어지기 전에 Opened를 보낼 수 있다.
+        let mut w = Windows::default();
+        assert_eq!(w.route_open("/a.md", &[]), Route::Pending(MAIN.to_string()));
+        assert_eq!(
+            w.route_open("/b.md", &[]),
+            Route::Create("win-1".to_string())
+        );
+        assert_eq!(w.take(MAIN), Some("/a.md".to_string()));
+        assert_eq!(w.take("win-1"), Some("/b.md".to_string()));
+    }
+
+    #[test]
+    fn emit_marks_window_as_taken_so_a_second_path_creates_a_window() {
+        // Finder에서 여러 파일을 열면 JS 보고보다 먼저 다음 경로가 온다.
+        let mut w = Windows::default();
+        w.take(MAIN);
+        assert_eq!(
+            w.route_open("/b.md", &[win(MAIN, true)]),
+            Route::Emit(MAIN.to_string())
+        );
+        assert_eq!(
+            w.route_open("/c.md", &[win(MAIN, true)]),
+            Route::Create("win-1".to_string())
+        );
+        assert_eq!(
+            w.route_open("/b.md", &[win(MAIN, true), win("win-1", false)]),
             Route::Focus(MAIN.to_string())
         );
     }
