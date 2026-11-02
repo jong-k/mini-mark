@@ -1,12 +1,11 @@
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
-import { getCurrentWindow } from "@tauri-apps/api/window";
-import { ask, message, open, save } from "@tauri-apps/plugin-dialog";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { ask, message, save } from "@tauri-apps/plugin-dialog";
 
 const MARKDOWN_FILTERS = [{ name: "Markdown", extensions: ["md", "markdown"] }];
 
-/** File 메뉴 항목 id와 같다. Rust `menu.rs`가 그대로 emit한다. */
-export type DocumentAction = "new" | "open" | "save" | "saveAs";
+/** File 메뉴 항목 id와 같다. Rust `menu.rs`가 앞 창에만 emit_to한다. New와 Open은 Rust가 처리한다. */
+export type DocumentAction = "save" | "saveAs";
 
 export function readMarkdown(path: string): Promise<string> {
   return invoke<string>("read_markdown", { path });
@@ -32,32 +31,43 @@ export function fileModifiedAt(path: string): Promise<number> {
   return invoke<number>("file_modified_at", { path });
 }
 
-/** 콜드 스타트 때 Finder가 넘긴 파일 경로. 한 번 부르면 이후 요청은 `onOpenFileRequested`로만 온다. */
+/** 이 창에 보류된 경로. 콜드 스타트의 Finder 인자나 새 창에 열 파일이다. 한 번 부르면 이후 요청은 `onOpenFileRequested`로만 온다. */
 export function takeOpenedFile(): Promise<string | null> {
   return invoke<string | null>("take_opened_file");
 }
 
+/** 이 창의 문서 상태를 Rust에 보고한다. 빈 창 판단과 같은 파일 재열기에 쓴다. */
+export function reportDocumentState(path: string | null, dirty: boolean): Promise<void> {
+  return invoke<void>("set_document_state", { path, dirty });
+}
+
+/** 닫기 확인을 취소했을 때 부른다. Cmd+Q 진행 중이면 종료를 멈춘다. */
+export function cancelQuit(): Promise<void> {
+  return invoke<void>("cancel_quit");
+}
+
+// 전역 listen은 모든 창이 받는다. 이 창을 겨냥한 emit_to만 받도록 창의 listen을 쓴다.
 export function onOpenFileRequested(handler: (path: string) => void): Promise<() => void> {
-  return listen<string>("open-file", (event) => handler(event.payload));
+  return getCurrentWebviewWindow().listen<string>("open-file", (event) => handler(event.payload));
 }
 
 export function onDocumentAction(handler: (action: DocumentAction) => void): Promise<() => void> {
-  return listen<DocumentAction>("document-action", (event) => handler(event.payload));
+  return getCurrentWebviewWindow().listen<DocumentAction>("document-action", (event) =>
+    handler(event.payload),
+  );
 }
 
 /** Edit 메뉴 찾기 항목 id와 같다. Rust `menu.rs`가 그대로 emit한다. */
 export type FindAction = "find" | "findNext" | "findPrev";
 
 export function onFindAction(handler: (action: FindAction) => void): Promise<() => void> {
-  return listen<FindAction>("find-action", (event) => handler(event.payload));
+  return getCurrentWebviewWindow().listen<FindAction>("find-action", (event) =>
+    handler(event.payload),
+  );
 }
 
 export function addRecentFile(path: string): Promise<void> {
   return invoke<void>("add_recent_file", { path });
-}
-
-export function pickOpenPath(): Promise<string | null> {
-  return open({ multiple: false, directory: false, filters: MARKDOWN_FILTERS });
 }
 
 export function pickSavePath(defaultPath?: string): Promise<string | null> {
@@ -96,11 +106,11 @@ export async function showError(text: string): Promise<void> {
 }
 
 export function setWindowTitle(title: string): Promise<void> {
-  return getCurrentWindow().setTitle(title);
+  return getCurrentWebviewWindow().setTitle(title);
 }
 
 export function onWindowCloseRequested(handler: () => Promise<boolean>): Promise<() => void> {
-  return getCurrentWindow().onCloseRequested(async (event) => {
+  return getCurrentWebviewWindow().onCloseRequested(async (event) => {
     if (!(await handler())) event.preventDefault();
   });
 }
