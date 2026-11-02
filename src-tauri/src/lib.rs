@@ -1,50 +1,13 @@
 mod fs;
 mod menu;
 mod recent;
-
-use std::sync::Mutex;
-use tauri::Manager;
-
-/// Finder가 넘긴 파일 경로. 웹뷰 리스너가 생기기 전(`ready == false`)에 온 요청은 보관했다가
-/// `take_opened_file`로 넘기고, 그 뒤 요청은 이벤트로만 보낸다.
-#[derive(Default)]
-struct OpenedFile {
-    pending: Option<String>,
-    ready: bool,
-}
-
-impl OpenedFile {
-    fn opened(&mut self, path: String) -> Option<String> {
-        if self.ready {
-            return Some(path);
-        }
-        self.pending = Some(path);
-        None
-    }
-
-    fn take(&mut self) -> Option<String> {
-        self.ready = true;
-        self.pending.take()
-    }
-}
-
-fn first_file_path(urls: &[tauri::Url]) -> Option<String> {
-    urls.iter()
-        .filter(|u| u.scheme() == "file")
-        .find_map(|u| u.to_file_path().ok())
-        .map(|p| p.to_string_lossy().into_owned())
-}
-
-#[tauri::command]
-fn take_opened_file(state: tauri::State<Mutex<OpenedFile>>) -> Option<String> {
-    state.lock().unwrap().take()
-}
+#[allow(dead_code)] // Task 3에서 Tauri에 연결한다
+mod windows;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .manage(Mutex::new(OpenedFile::default()))
         .setup(|app| {
             let (menu, open_recent) = menu::build(app.handle())?;
             app.set_menu(menu)?;
@@ -57,67 +20,9 @@ pub fn run() {
             fs::save_markdown_atomic,
             fs::save_asset,
             fs::file_modified_at,
-            recent::add_recent_file,
-            take_opened_file
+            recent::add_recent_file
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
-        .run(|app, event| {
-            // ponytail: 여러 파일을 동시에 열면 첫 파일만 연다. 다중 창이 필요해지면 창을 추가 생성.
-            #[cfg(target_os = "macos")]
-            if let tauri::RunEvent::Opened { urls } = event
-                && let Some(path) = first_file_path(&urls)
-                && let Some(path) = app
-                    .state::<Mutex<OpenedFile>>()
-                    .lock()
-                    .unwrap()
-                    .opened(path)
-            {
-                use tauri::Emitter;
-                let _ = app.emit("open-file", path);
-            }
-        });
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{OpenedFile, first_file_path};
-    use tauri::Url;
-
-    #[test]
-    fn first_file_path_picks_first_file_url() {
-        let urls = [
-            Url::parse("https://example.com/a.md").unwrap(),
-            Url::parse("file:///Users/me/notes/a%20b.md").unwrap(),
-            Url::parse("file:///Users/me/notes/c.md").unwrap(),
-        ];
-        assert_eq!(
-            first_file_path(&urls).as_deref(),
-            Some("/Users/me/notes/a b.md")
-        );
-    }
-
-    #[test]
-    fn first_file_path_is_none_without_file_url() {
-        let urls = [Url::parse("https://example.com/a.md").unwrap()];
-        assert_eq!(first_file_path(&urls), None);
-        assert_eq!(first_file_path(&[]), None);
-    }
-
-    #[test]
-    fn opened_before_ready_is_stored() {
-        let mut state = OpenedFile::default();
-        assert_eq!(state.opened("/a.md".into()), None);
-        assert_eq!(state.opened("/b.md".into()), None); // 마지막 요청이 남는다
-        assert_eq!(state.take(), Some("/b.md".to_string()));
-        assert_eq!(state.take(), None);
-    }
-
-    #[test]
-    fn opened_after_ready_is_not_stored() {
-        let mut state = OpenedFile::default();
-        assert_eq!(state.take(), None);
-        assert_eq!(state.opened("/a.md".into()), Some("/a.md".to_string()));
-        assert_eq!(state.take(), None);
-    }
+        .run(|_app, _event| {});
 }
