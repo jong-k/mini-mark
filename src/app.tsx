@@ -9,6 +9,7 @@ import { formatMarkdown } from "./lib/format-markdown";
 import { createTaskQueue } from "./lib/task-queue";
 import {
   addRecentFile,
+  cancelQuit,
   confirmDiscard,
   confirmOverwrite,
   confirmReload,
@@ -16,9 +17,9 @@ import {
   onDocumentAction,
   onOpenFileRequested,
   onWindowCloseRequested,
-  pickOpenPath,
   pickSavePath,
   readMarkdown,
+  reportDocumentState,
   saveMarkdownAtomic,
   setWindowTitle,
   showError,
@@ -37,20 +38,23 @@ const statOrNull = (path: string) => fileModifiedAt(path).catch(() => null);
 
 export default function App() {
   const editor = useRef<EditorHandle>(null);
-  // 문서 메타데이터는 React 상태가 아니라 ref 하나에 둔다. 렌더가 없으니 모든 함수가 항상 최신값을 읽고, 바뀌면 창 제목만 갱신한다.
+  // 문서 메타데이터는 React 상태가 아니라 ref 하나에 둔다. 렌더가 없으니 모든 함수가 항상 최신값을 읽고, 바뀌면 창 제목과 Rust 보고만 한다.
   const doc = useRef<DocumentMeta>({ filePath: null, isDirty: false, knownMtime: null });
   // 입력마다 증가. 읽는 동안 입력이 있었는지 readDocument와 pollFileChange가 비교한다.
   const changeCount = useRef(0);
-  // 문서 동작은 큐로 직렬화한다. 저장 중 들어온 Cmd+N/Cmd+O나 Finder 열기는 버리지 않고 앞 동작이 끝난 뒤 실행한다.
+  // 문서 동작은 큐로 직렬화한다. 저장 중 들어온 Finder 열기나 Open Recent는 버리지 않고 앞 동작이 끝난 뒤 실행한다.
   const [queue] = useState(createTaskQueue);
   // useRef(new Promise(...))는 렌더마다 executor가 돌아 resolver가 버려지는 Promise로 바뀐다. 지연 초기화로 한 번만 만든다.
   const [editorReady] = useState(deferred<void>);
 
   function update(patch: Partial<DocumentMeta>) {
-    const before = windowTitle(doc.current.filePath, doc.current.isDirty);
+    const { filePath, isDirty } = doc.current;
     Object.assign(doc.current, patch);
+    if (doc.current.filePath === filePath && doc.current.isDirty === isDirty) return;
     const after = windowTitle(doc.current.filePath, doc.current.isDirty);
-    if (after !== before) void setWindowTitle(after);
+    if (after !== windowTitle(filePath, isDirty)) void setWindowTitle(after);
+    // 빈 창 판단과 같은 파일 재열기는 Rust가 한다. 보고는 부가 기능이라 실패를 무시한다.
+    void reportDocumentState(doc.current.filePath, doc.current.isDirty).catch(() => {});
   }
 
   async function run(action: () => Promise<void>) {
@@ -65,16 +69,6 @@ export default function App() {
   async function waitEditor(): Promise<EditorHandle> {
     await editorReady.promise;
     return editor.current!;
-  }
-
-  function newDocument() {
-    return run(async () => {
-      const h = await waitEditor();
-      if (doc.current.isDirty && !(await confirmDiscard())) return;
-      h.setFilePath(null);
-      h.setValue("");
-      update({ filePath: null, isDirty: false, knownMtime: null });
-    });
   }
 
   // 큐에 넣지 않는다. 진입점(메뉴, Finder 열기, 폴링)이 queue.enqueue로 한 번만 감싼다.
@@ -96,15 +90,6 @@ export default function App() {
       // 최근 목록은 부가 기능이다. 실패해도 열기는 성공했으므로 오류를 보이지 않는다.
       await addRecentFile(path).catch(() => {});
     });
-  }
-
-  async function openDocument() {
-    const path = await pickOpenPath().catch(async (err) => {
-      await showError(String(err));
-      return null;
-    });
-    if (path === null) return;
-    await openPath(path);
   }
 
   function saveDocument(path: string) {
@@ -182,7 +167,7 @@ export default function App() {
     update({ isDirty: false });
   }
 
-  const actions = { new: newDocument, open: openDocument, save, saveAs };
+  const actions = { save, saveAs };
 
   useEffect(() => {
     void setWindowTitle(windowTitle(null, false));
@@ -192,12 +177,14 @@ export default function App() {
       const p = await takeOpenedFile().catch(() => null);
       if (p !== null) await queue.enqueue(() => openPath(p));
     });
-    // 단축키는 File 메뉴 accelerator가 받아 이 이벤트로 온다.
+    // Save, Save As는 메뉴 accelerator가 받아 앞 창에만 보낸다. New와 Open은 Rust가 처리한다.
     const acting = onDocumentAction((a) => void queue.enqueue(() => actions[a]()));
     // ponytail: 버리기/취소 2버튼. 저장/버리기/취소 3버튼이 필요하면 커스텀 모달로 교체.
-    const closing = onWindowCloseRequested(
-      async () => !doc.current.isDirty || (await confirmDiscard()),
-    );
+    const closing = onWindowCloseRequested(async () => {
+      if (!doc.current.isDirty || (await confirmDiscard())) return true;
+      await cancelQuit().catch(() => {});
+      return false;
+    });
     // 틱은 큐가 비었을 때만 들어간다. 문서 동작 중에는 건너뛰고, 틱 중 들어온 사용자 요청은 큐에서 기다린다.
     const interval = setInterval(() => {
       if (queue.idle()) void queue.enqueue(tick);
