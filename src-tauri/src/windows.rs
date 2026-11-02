@@ -1,6 +1,10 @@
 use std::collections::HashMap;
+use std::sync::Mutex;
 
-pub const MAIN: &str = "main";
+use tauri::{
+    AppHandle, Emitter, Manager, RunEvent, State, WebviewWindow, WebviewWindowBuilder, WindowEvent,
+};
+use tauri_plugin_dialog::DialogExt;
 
 /// JS가 보고한 창의 문서 상태. `take`로 준비된 창만 항목이 있다.
 #[derive(Debug, Default, Clone, PartialEq)]
@@ -97,9 +101,161 @@ impl Windows {
     }
 }
 
+type Shared<'a> = State<'a, Mutex<Windows>>;
+
+fn existing(app: &AppHandle) -> Vec<(String, bool)> {
+    app.webview_windows()
+        .into_iter()
+        .map(|(label, w)| (label, w.is_focused().unwrap_or(false)))
+        .collect()
+}
+
+/// 앞 창(포커스된 창)의 라벨. 메뉴가 Save, Find를 이 창에만 보낸다.
+pub fn focused_label(app: &AppHandle) -> Option<String> {
+    existing(app).into_iter().find(|(_, f)| *f).map(|(l, _)| l)
+}
+
+/// `tauri.conf.json`의 첫 창 설정을 복제해 라벨만 바꾼다. 앞 창이 있으면 오른쪽 아래로 24pt 비켜 띄운다.
+fn create_window(app: &AppHandle, label: &str) -> tauri::Result<WebviewWindow> {
+    let mut cfg = app.config().app.windows[0].clone();
+    cfg.label = label.to_string();
+    let mut builder = WebviewWindowBuilder::from_config(app, &cfg)?;
+    if let Some(front) = focused_label(app).and_then(|l| app.get_webview_window(&l))
+        && let (Ok(pos), Ok(scale)) = (front.outer_position(), front.scale_factor())
+    {
+        let pos = pos.to_logical::<f64>(scale);
+        builder = builder.position(pos.x + 24.0, pos.y + 24.0);
+    }
+    builder.build()
+}
+
+/// 모든 열기 요청(Cmd+O, Open Recent, Finder, 콜드 스타트)이 여기로 모인다.
+pub fn open_file(app: &AppHandle, path: String) {
+    let route = {
+        let windows = existing(app);
+        let existing: Vec<Existing> = windows
+            .iter()
+            .map(|(l, f)| Existing {
+                label: l,
+                focused: *f,
+            })
+            .collect();
+        app.state::<Mutex<Windows>>()
+            .lock()
+            .unwrap()
+            .route_open(&path, &existing)
+    };
+    // 실패를 보여 줄 창이 없을 수 있어 로그만 남긴다.
+    let result = match route {
+        Route::Focus(label) => app
+            .get_webview_window(&label)
+            .map_or(Ok(()), |w| w.set_focus()),
+        Route::Pending(_) => Ok(()),
+        Route::Emit(label) => app.emit_to(label, "open-file", path),
+        Route::Create(label) => create_window(app, &label).map(|_| ()),
+    };
+    if let Err(e) = result {
+        eprintln!("open_file: {e}");
+    }
+}
+
+/// Cmd+N과 Dock 재열기. 빈 문서로 새 창을 연다.
+pub fn open_blank(app: &AppHandle) {
+    let label = app.state::<Mutex<Windows>>().lock().unwrap().new_label();
+    if let Err(e) = create_window(app, &label) {
+        eprintln!("open_blank: {e}");
+    }
+}
+
+/// Cmd+O. 창이 없어도 동작하도록 Rust가 대화상자를 띄운다.
+pub fn pick_and_open(app: &AppHandle) {
+    let handle = app.clone();
+    app.dialog()
+        .file()
+        .add_filter("Markdown", &["md", "markdown"])
+        .pick_file(move |picked| {
+            if let Some(path) = picked.and_then(|f| f.into_path().ok()) {
+                open_file(&handle, path.to_string_lossy().into_owned());
+            }
+        });
+}
+
+/// Cmd+Q. 창마다 닫기 가드(JS)를 거친다. 하나라도 취소하면 JS가 `cancel_quit`를 불러 멈춘다.
+pub fn quit(app: &AppHandle) {
+    app.state::<Mutex<Windows>>().lock().unwrap().quitting = true;
+    let windows = app.webview_windows();
+    if windows.is_empty() {
+        app.exit(0);
+        return;
+    }
+    for w in windows.into_values() {
+        let _ = w.close();
+    }
+}
+
+pub fn on_run_event(app: &AppHandle, event: RunEvent) {
+    match event {
+        #[cfg(target_os = "macos")]
+        RunEvent::Opened { urls } => {
+            for path in urls
+                .iter()
+                .filter(|u| u.scheme() == "file")
+                .filter_map(|u| u.to_file_path().ok())
+            {
+                open_file(app, path.to_string_lossy().into_owned());
+            }
+        }
+        #[cfg(target_os = "macos")]
+        RunEvent::Reopen {
+            has_visible_windows: false,
+            ..
+        } => open_blank(app),
+        // 마지막 창이 닫혀도 앱은 남는다. 종료는 Cmd+Q의 `app.exit`(code Some)로만 한다.
+        RunEvent::ExitRequested {
+            code: None, api, ..
+        } => api.prevent_exit(),
+        RunEvent::WindowEvent {
+            label,
+            event: WindowEvent::Destroyed,
+            ..
+        } => {
+            let state = app.state::<Mutex<Windows>>();
+            let mut windows = state.lock().unwrap();
+            windows.forget(&label);
+            // 파괴 중인 창이 아직 목록에 남아 있을 수 있어 그 라벨은 빼고 센다.
+            if windows.quitting && app.webview_windows().keys().all(|l| *l == label) {
+                app.exit(0);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// 이 창에 보류된 경로. 콜드 스타트의 Finder 인자나 새 창에 열 파일이다. 창을 준비 상태로 표시한다.
+#[tauri::command]
+pub fn take_opened_file(window: WebviewWindow, state: Shared) -> Option<String> {
+    state.lock().unwrap().take(window.label())
+}
+
+#[tauri::command]
+pub fn set_document_state(window: WebviewWindow, state: Shared, path: Option<String>, dirty: bool) {
+    state
+        .lock()
+        .unwrap()
+        .set_doc(window.label(), Doc { path, dirty });
+}
+
+#[tauri::command]
+pub fn cancel_quit(state: Shared) {
+    state.lock().unwrap().quitting = false;
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// tauri.conf.json 첫 창의 라벨
+    const MAIN: &str = "main";
 
     fn win(label: &str, focused: bool) -> Existing<'_> {
         Existing { label, focused }

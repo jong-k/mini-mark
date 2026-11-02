@@ -2,6 +2,7 @@ use tauri::menu::{Menu, MenuBuilder, MenuEvent, MenuItemBuilder, Submenu, Submen
 use tauri::{AppHandle, Emitter, Manager, Wry};
 
 use crate::recent::{self, RecentFiles};
+use crate::windows;
 
 /// 메뉴를 만들고 Open Recent 서브메뉴 핸들을 함께 돌려준다.
 pub fn build(app: &AppHandle) -> tauri::Result<(Menu<Wry>, Submenu<Wry>)> {
@@ -20,7 +21,7 @@ pub fn build(app: &AppHandle) -> tauri::Result<(Menu<Wry>, Submenu<Wry>)> {
         .separator()
         .item(&quit)
         .build()?;
-    // 단축키는 메뉴 accelerator가 맡는다. 웹뷰 keydown과 겹치면 저장이 두 번 실행된다.
+    // 단축키는 메뉴 accelerator가 맡는다. 웹뷰 keydown과 겹치면 저장이 두 번 실행된다. on_event가 앞 창에만 보낸다.
     let new = MenuItemBuilder::with_id("new", "New")
         .accelerator("CmdOrCtrl+N")
         .build(app)?;
@@ -71,6 +72,8 @@ pub fn build(app: &AppHandle) -> tauri::Result<(Menu<Wry>, Submenu<Wry>)> {
         .separator()
         .close_window()
         .build()?;
+    // macOS가 열린 창 목록을 이 메뉴 아래에 붙인다.
+    window_menu.set_as_windows_menu_for_nsapp()?;
     let menu = MenuBuilder::new(app)
         .items(&[&app_menu, &file_menu, &edit_menu, &window_menu])
         .build()?;
@@ -81,16 +84,19 @@ pub fn build(app: &AppHandle) -> tauri::Result<(Menu<Wry>, Submenu<Wry>)> {
 pub fn on_event(app: &AppHandle, event: MenuEvent) {
     let id = event.id().as_ref();
     match id {
-        "quit" => {
-            if let Some(w) = app.get_webview_window("main") {
-                let _ = w.close();
+        "quit" => windows::quit(app),
+        "new" => windows::open_blank(app),
+        "open" => windows::pick_and_open(app),
+        // 전역 emit은 모든 창이 받는다. 앞 창에만 보낸다.
+        "save" | "saveAs" => {
+            if let Some(label) = windows::focused_label(app) {
+                let _ = app.emit_to(label, "document-action", id);
             }
         }
-        "new" | "open" | "save" | "saveAs" => {
-            let _ = app.emit("document-action", id);
-        }
         "find" | "findNext" | "findPrev" => {
-            let _ = app.emit("find-action", id);
+            if let Some(label) = windows::focused_label(app) {
+                let _ = app.emit_to(label, "find-action", id);
+            }
         }
         "clear-recent" => {
             let _ = recent::clear(app, &app.state::<RecentFiles>());
@@ -101,7 +107,7 @@ pub fn on_event(app: &AppHandle, event: MenuEvent) {
                 .and_then(|i| i.parse::<usize>().ok())
                 && let Some(path) = recent::path_at(&app.state::<RecentFiles>(), index)
             {
-                let _ = app.emit("open-file", path);
+                windows::open_file(app, path);
             }
         }
     }
