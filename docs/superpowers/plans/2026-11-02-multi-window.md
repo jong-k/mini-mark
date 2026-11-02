@@ -18,7 +18,7 @@ Spec: `docs/spec/windows.md`
 - JS 이벤트 리스너는 `getCurrentWebviewWindow().listen()`만 쓴다. 전역 `listen()`은 모든 창이 받으므로 쓰지 않는다. Rust는 앞 창을 겨냥할 때 `emit_to(label, ...)`를 쓴다.
 - 창 라벨은 `main`, 그 뒤 `win-1`, `win-2`처럼 늘기만 한다. 새 창 위치는 앞 창 기준 `+24.0, +24.0`(논리 좌표)이다.
 - 빈 창은 `path == None && !dirty`다.
-- Rust 커맨드 에러는 `Result<T, String>`이다. 가운뎃점 문자를 쓰지 않는다. 커밋 메시지는 `docs/conventions/commit-convention.md`를 따르고 본문 없이 Co-Authored-By 꼬리말만 붙인다.
+- Rust 커맨드 에러는 `Result<T, String>`이다. 가운뎃점 문자를 쓰지 않는다. 커밋 메시지는 `docs/conventions/commit-convention.md`를 따른다. 본문과 꼬리말은 쓰지 않는다.
 - 커밋 전 `pnpm lint`, `pnpm fmt:check`, `pnpm test`를 통과시킨다. Rust를 바꾼 커밋은 `pnpm fmt:rs`, `pnpm lint:rs`, `cargo test --manifest-path src-tauri/Cargo.toml`도 통과시킨다.
 
 ## Review Focus
