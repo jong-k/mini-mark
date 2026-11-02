@@ -89,6 +89,9 @@ export default function App() {
       update({ filePath: path, isDirty: false, knownMtime: result.mtime });
       // 최근 목록은 부가 기능이다. 실패해도 열기는 성공했으므로 오류를 보이지 않는다.
       await addRecentFile(path).catch(() => {});
+    }).finally(() => {
+      // Rust는 보낸 즉시 이 창을 그 경로의 창으로 적는다. 실패나 취소 뒤 실제 상태로 되돌린다.
+      void reportDocumentState(doc.current.filePath, doc.current.isDirty).catch(() => {});
     });
   }
 

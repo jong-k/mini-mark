@@ -148,6 +148,12 @@ fn create_window(app: &AppHandle, label: &str) -> tauri::Result<WebviewWindow> {
     builder.build()
 }
 
+/// 최소화된 창은 `set_focus`가 듣지 않는다. 먼저 복원한다.
+fn bring_front(w: &WebviewWindow) -> tauri::Result<()> {
+    w.unminimize()?;
+    w.set_focus()
+}
+
 /// 모든 열기 요청(Cmd+O, Open Recent, Finder, 콜드 스타트)이 여기로 모인다.
 pub fn open_file(app: &AppHandle, path: String) {
     let route = {
@@ -168,9 +174,12 @@ pub fn open_file(app: &AppHandle, path: String) {
     let result = match route {
         Route::Focus(label) => app
             .get_webview_window(&label)
-            .map_or(Ok(()), |w| w.set_focus()),
+            .map_or(Ok(()), |w| bring_front(&w)),
         Route::Pending(_) => Ok(()),
-        Route::Emit(label) => app.emit_to(label, "open-file", path),
+        Route::Emit(label) => app.emit_to(&label, "open-file", path).and_then(|_| {
+            app.get_webview_window(&label)
+                .map_or(Ok(()), |w| bring_front(&w))
+        }),
         Route::Create(label) => create_window(app, &label).map(|_| ()),
     };
     if let Err(e) = result {
@@ -224,11 +233,17 @@ pub fn on_run_event(app: &AppHandle, event: RunEvent) {
                 open_file(app, path.to_string_lossy().into_owned());
             }
         }
+        // 창이 전부 최소화되거나 숨겨져 있어도 has_visible_windows가 false다. 그때는 새 창 대신 복원한다.
         #[cfg(target_os = "macos")]
         RunEvent::Reopen {
             has_visible_windows: false,
             ..
-        } => open_blank(app),
+        } => match app.webview_windows().into_values().next() {
+            None => open_blank(app),
+            Some(w) => {
+                let _ = bring_front(&w);
+            }
+        },
         // 마지막 창이 닫혀도 앱은 남는다. 종료는 Cmd+Q의 `app.exit`(code Some)로만 한다.
         RunEvent::ExitRequested {
             code: None, api, ..
