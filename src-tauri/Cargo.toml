@@ -1,6 +1,6 @@
 [package]
 name = "mini-mark"
-version = "0.1.1"
+version = "0.2.0"
 description = "macOS 경량 마크다운 에디터"
 authors = ["jong-k"]
 edition = "2024"
